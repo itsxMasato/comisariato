@@ -9,25 +9,25 @@ import Dashboard from "../pages/Dashboard";
 import Error403 from "../pages/Error403";
 
 // Productos
-import Productos from "../pages/productos/Productos";
+import Productos from "../pages/Productos";
 
 // Empleados
-import Empleados from "../pages/empleados/Empleados";
+import Empleados from "../pages/Empleados";
 
 // Créditos
-import Creditos from "../pages/creditos/Creditos";
-import NuevoCredito from "../pages/creditos/NuevoCredito";
-import DetalleCredito from "../pages/creditos/DetalleCredito";
+import Creditos from "../pages/Creditos";
+import NuevoCredito from "../pages/NuevoCredito";
+import DetalleCredito from "../pages/DetalleCredito";
 
 // Cuotas
-import Cuotas from "../pages/cuotas/Cuotas";
-import RegistrarPago from "../pages/cuotas/RegistrarPago";
+import Cuotas from "../pages/Cuotas";
+import RegistrarPago from "../pages/RegistrarPago";
 
 // Reservas
-import Reservas from "../pages/reservas/Reservas";
+import Reservas from "../pages/Reservas";
 
 // Usuarios del sistema (solo admin)
-import Usuarios from "../pages/usuarios/Usuarios";
+import Usuarios from "../pages/Usuarios";
 
 export default function AppRouter() {
   return (
