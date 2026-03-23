@@ -280,6 +280,9 @@ export default function Productos() {
                     Categoría
                   </th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Precio
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     Stock
                   </th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
@@ -314,6 +317,9 @@ export default function Productos() {
                       <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-tight">
                         {p.category}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-900 text-sm">
+                      {p.price}
                     </td>
                     <td className="px-6 py-4">
                       <StockCell product={p} />
