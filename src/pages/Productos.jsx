@@ -8,7 +8,7 @@ const INITIAL_PRODUCTS = [
     name: "Azúcar Refinada Estándar",
     sku: "AZU-001-ST",
     category: "Granos y Cereales",
-    price: "$12.50 / kg",
+    price: "L 12.50 / kg",
     stock: 1250,
     status: "ok",
     active: true,
@@ -19,7 +19,7 @@ const INITIAL_PRODUCTS = [
     name: "Fertilizante Nitrogenado",
     sku: "FER-992-AG",
     category: "Insumos",
-    price: "$450.00 / sac",
+    price: "L 450.00 / sac",
     stock: 12,
     status: "low",
     active: true,
@@ -30,7 +30,7 @@ const INITIAL_PRODUCTS = [
     name: 'Machete de Zafra 22"',
     sku: "HER-012-MQ",
     category: "Herramientas",
-    price: "$18.75 / ud",
+    price: "L 18.75 / ud",
     stock: 85,
     status: "ok",
     active: true,
@@ -41,7 +41,7 @@ const INITIAL_PRODUCTS = [
     name: "Arroz de Grano Largo",
     sku: "ARR-005-ST",
     category: "Granos y Cereales",
-    price: "$1.20 / kg",
+    price: "L 1.20 / kg",
     stock: 0,
     status: "out",
     active: true,
@@ -122,7 +122,7 @@ export default function Productos() {
       name: formData.get("name"),
       sku: formData.get("sku"),
       category: formData.get("category"),
-      price: `$${formData.get("price")} / ud`,
+      price: `L ${formData.get("price")} / ud`,
       stock: stockVal,
       status: stockVal === 0 ? "out" : stockVal < 20 ? "low" : "ok",
       active: true,
@@ -280,6 +280,9 @@ export default function Productos() {
                     Categoría
                   </th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Precio
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     Stock
                   </th>
                   <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
@@ -314,6 +317,9 @@ export default function Productos() {
                       <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-tight">
                         {p.category}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-900 text-sm">
+                      {p.price}
                     </td>
                     <td className="px-6 py-4">
                       <StockCell product={p} />
