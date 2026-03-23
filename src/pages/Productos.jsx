@@ -1,34 +1,452 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useMemo } from "react";
+import SideBar from "../components/SideBar"; // Ajusta la ruta según tu carpeta
 
-export default function Error403() {
+const INITIAL_PRODUCTS = [
+  {
+    id: 1,
+    name: "Azúcar Refinada Estándar",
+    sku: "AZU-001-ST",
+    category: "Granos y Cereales",
+    price: "$12.50 / kg",
+    stock: 1250,
+    status: "ok",
+    active: true,
+    img: "https://images.unsplash.com/photo-1581447100595-3a8175b058fe?q=80&w=200&auto=format&fit=crop",
+  },
+  {
+    id: 2,
+    name: "Fertilizante Nitrogenado",
+    sku: "FER-992-AG",
+    category: "Insumos",
+    price: "$450.00 / sac",
+    stock: 12,
+    status: "low",
+    active: true,
+    img: "https://images.unsplash.com/photo-1628352081506-83c43123ed6d?q=80&w=200&auto=format&fit=crop",
+  },
+  {
+    id: 3,
+    name: 'Machete de Zafra 22"',
+    sku: "HER-012-MQ",
+    category: "Herramientas",
+    price: "$18.75 / ud",
+    stock: 85,
+    status: "ok",
+    active: true,
+    img: "https://images.unsplash.com/photo-1595130792344-90696954848d?q=80&w=200&auto=format&fit=crop",
+  },
+  {
+    id: 4,
+    name: "Arroz de Grano Largo",
+    sku: "ARR-005-ST",
+    category: "Granos y Cereales",
+    price: "$1.20 / kg",
+    stock: 0,
+    status: "out",
+    active: true,
+    img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?q=80&w=200&auto=format&fit=crop",
+  },
+];
+
+function StockCell({ product }) {
+  if (!product.active)
+    return (
+      <span className="text-[10px] font-black text-slate-400 uppercase italic">
+        Inactivo
+      </span>
+    );
+  if (product.status === "out")
+    return (
+      <div className="flex items-center gap-2 text-red-600">
+        <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+        <span className="text-sm font-black uppercase">Agotado</span>
+      </div>
+    );
+  if (product.status === "low")
+    return (
+      <div className="flex items-center gap-2 text-amber-700">
+        <div className="w-2 h-2 rounded-full bg-amber-600" />
+        <span className="text-sm font-semibold">{product.stock} (Bajo)</span>
+      </div>
+    );
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 text-gray-800 p-4 relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-        <span className="material-symbols-outlined text-[30rem]">lock</span>
-      </div>
+    <div className="flex items-center gap-2 text-slate-700">
+      <div className="w-2 h-2 rounded-full bg-green-700" />
+      <span className="text-sm font-semibold">
+        {product.stock.toLocaleString()} ud
+      </span>
+    </div>
+  );
+}
 
-      <div className="z-10 text-center space-y-6">
-        <h1 className="text-9xl font-extrabold text-green-800 tracking-tighter">
-          403
-        </h1>
-        <h2 className="text-2xl md:text-4xl font-bold font-headline text-gray-900">
-          Acceso Denegado
-        </h2>
-        <p className="text-gray-500 max-w-md mx-auto text-lg">
-          No tienes los permisos necesarios para acceder a esta sección del
-          portal de administración.
-        </p>
-        <div className="mt-8">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 bg-green-800 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95"
-          >
-            <span className="material-symbols-outlined">arrow_back</span>
-            Volver al inicio
-          </Link>
+export default function Productos() {
+  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(
+    "Todos los productos",
+  );
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
+  const filtered = useMemo(() => {
+    return products.filter((p) => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.sku.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory =
+        selectedCategory === "Todos los productos" ||
+        p.category === selectedCategory;
+      const matchesStatus =
+        statusFilter === "all" ? true : p.status === statusFilter;
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [search, products, selectedCategory, statusFilter]);
+
+  const counts = useMemo(
+    () => ({
+      all: products.filter((p) => p.active).length,
+      low: products.filter((p) => p.status === "low" && p.active).length,
+      out: products.filter((p) => p.status === "out" && p.active).length,
+    }),
+    [products],
+  );
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const stockVal = parseInt(formData.get("stock"));
+    const productData = {
+      name: formData.get("name"),
+      sku: formData.get("sku"),
+      category: formData.get("category"),
+      price: `$${formData.get("price")} / ud`,
+      stock: stockVal,
+      status: stockVal === 0 ? "out" : stockVal < 20 ? "low" : "ok",
+      active: true,
+      img:
+        formData.get("img_url") ||
+        "https://via.placeholder.com/150?text=Sin+Foto",
+    };
+
+    if (selectedProduct) {
+      setProducts(
+        products.map((p) =>
+          p.id === selectedProduct.id ? { ...p, ...productData } : p,
+        ),
+      );
+    } else {
+      setProducts([...products, { ...productData, id: Date.now() }]);
+    }
+    setIsModalOpen(false);
+  };
+
+  return (
+    <div className="bg-gray-50 text-gray-900 min-h-screen flex font-sans">
+      {/* Usamos tu SideBar existente */}
+      <SideBar />
+
+      <main className="ml-64 flex-1 min-h-screen">
+        {/* Header con Buscador */}
+        <header className="sticky top-0 h-16 px-8 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200">
+          <div className="relative w-full max-w-md">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+              search
+            </span>
+            <input
+              className="w-full bg-slate-100 border-none rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-green-700 outline-none"
+              placeholder="Buscar por nombre o SKU..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </header>
+
+        <div className="p-8 max-w-7xl mx-auto space-y-8">
+          <div className="flex justify-between items-end">
+            <div>
+              <h2
+                className="text-3xl font-black text-slate-900 tracking-tight"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Inventario
+              </h2>
+              <p className="text-slate-500 font-medium">
+                Gestiona tus productos y existencias.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedProduct(null);
+                setIsModalOpen(true);
+              }}
+              className="bg-green-700 hover:bg-green-800 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-xl shadow-green-900/20 transition-all active:scale-95"
+            >
+              <span className="material-symbols-outlined">add_circle</span>{" "}
+              Nuevo Producto
+            </button>
+          </div>
+
+          <div className="grid grid-cols-12 gap-8">
+            {/* Filtros de la página (Categoría y Stock) */}
+            <aside className="col-span-12 lg:col-span-3 space-y-6">
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-8 sticky top-24">
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm mb-4 uppercase tracking-widest">
+                    Categorías
+                  </h3>
+                  <div className="space-y-1">
+                    {[
+                      "Todos los productos",
+                      "Granos y Cereales",
+                      "Insumos",
+                      "Herramientas",
+                    ].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setSelectedCategory(cat)}
+                        className={`w-full text-left px-4 py-2 rounded-xl text-sm font-bold transition-all ${selectedCategory === cat ? "bg-green-50 text-green-800 ring-1 ring-green-100" : "text-slate-400 hover:bg-slate-50"}`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-black text-slate-800 text-sm mb-4 uppercase tracking-widest">
+                    Estado Stock
+                  </h3>
+                  <div className="space-y-1">
+                    <button
+                      onClick={() => setStatusFilter("all")}
+                      className={`w-full flex justify-between px-4 py-2 rounded-xl text-sm font-bold ${statusFilter === "all" ? "bg-slate-100 text-slate-900" : "text-slate-400"}`}
+                    >
+                      Todos <span className="opacity-60">{counts.all}</span>
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter("low")}
+                      className={`w-full flex justify-between px-4 py-2 rounded-xl text-sm font-bold ${statusFilter === "low" ? "bg-amber-50 text-amber-700" : "text-slate-400"}`}
+                    >
+                      Bajo Stock{" "}
+                      <span className="bg-amber-600 text-white px-2 rounded-full text-[10px]">
+                        {counts.low}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => setStatusFilter("out")}
+                      className={`w-full flex justify-between px-4 py-2 rounded-xl text-sm font-bold ${statusFilter === "out" ? "bg-red-50 text-red-700" : "text-slate-400"}`}
+                    >
+                      Agotados{" "}
+                      <span className="bg-red-600 text-white px-2 rounded-full text-[10px]">
+                        {counts.out}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </aside>
+
+            {/* Tabla con Fotos */}
+            <div className="col-span-12 lg:col-span-9 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Producto
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Categoría
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Stock
+                    </th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filtered.map((p) => (
+                    <tr
+                      key={p.id}
+                      className={`group hover:bg-slate-50/80 transition-all ${!p.active ? "opacity-50" : ""}`}
+                    >
+                      <td className="px-6 py-4 flex items-center gap-4">
+                        <img
+                          src={p.img}
+                          alt={p.name}
+                          className="w-12 h-12 rounded-xl object-cover bg-slate-100 border border-slate-200 shadow-sm"
+                        />
+                        <div>
+                          <p className="font-bold text-slate-900 text-sm leading-tight">
+                            {p.name}
+                          </p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                            SKU: {p.sku}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-tight">
+                          {p.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StockCell product={p} />
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => {
+                              setSelectedProduct(p);
+                              setIsModalOpen(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-lg">
+                              edit
+                            </span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              setProducts(
+                                products.map((x) =>
+                                  x.id === p.id
+                                    ? { ...x, active: !x.active }
+                                    : x,
+                                ),
+                              )
+                            }
+                            className={`p-2 rounded-lg transition-colors ${p.active ? "text-slate-400 hover:text-amber-600 hover:bg-amber-50" : "text-green-600 hover:bg-green-50"}`}
+                          >
+                            <span className="material-symbols-outlined text-lg">
+                              {p.active ? "block" : "check_circle"}
+                            </span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filtered.length === 0 && (
+                <div className="p-20 text-center text-slate-400 font-bold italic">
+                  No hay productos que coincidan con los filtros.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
+      </main>
+
+      {/* Modal para crear/editar con URL de Foto */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-green-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSave}
+            className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300"
+          >
+            <div className="p-8 bg-green-900 text-white flex justify-between items-center">
+              <h3 className="text-2xl font-black">
+                {selectedProduct ? "Editar" : "Nuevo"} Producto
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-all"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="p-10 space-y-5">
+              <div className="grid grid-cols-12 gap-5">
+                <div className="col-span-12">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    URL de Imagen
+                  </label>
+                  <input
+                    name="img_url"
+                    defaultValue={selectedProduct?.img}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none focus:border-green-700 text-sm font-bold"
+                    placeholder="https://ejemplo.com/foto.jpg"
+                  />
+                </div>
+                <div className="col-span-8">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Nombre del Producto
+                  </label>
+                  <input
+                    name="name"
+                    required
+                    defaultValue={selectedProduct?.name}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none focus:border-green-700 text-sm font-bold"
+                  />
+                </div>
+                <div className="col-span-4">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    SKU
+                  </label>
+                  <input
+                    name="sku"
+                    required
+                    defaultValue={selectedProduct?.sku}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none focus:border-green-700 text-sm font-bold text-center"
+                  />
+                </div>
+                <div className="col-span-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Categoría
+                  </label>
+                  <select
+                    name="category"
+                    defaultValue={selectedProduct?.category}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none font-bold text-sm"
+                  >
+                    <option>Granos y Cereales</option>
+                    <option>Insumos</option>
+                    <option>Herramientas</option>
+                  </select>
+                </div>
+                <div className="col-span-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Precio
+                  </label>
+                  <input
+                    name="price"
+                    type="number"
+                    step="0.01"
+                    required
+                    defaultValue={selectedProduct?.price.replace(
+                      /[^0-9.]/g,
+                      "",
+                    )}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none focus:border-green-700 text-sm font-bold"
+                  />
+                </div>
+                <div className="col-span-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Stock
+                  </label>
+                  <input
+                    name="stock"
+                    type="number"
+                    required
+                    defaultValue={selectedProduct?.stock}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none focus:border-green-700 text-sm font-bold"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-green-800 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-green-900 transition-all active:scale-95 uppercase tracking-widest mt-4"
+              >
+                {selectedProduct ? "Guardar Cambios" : "Crear Producto"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
