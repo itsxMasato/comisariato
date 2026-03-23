@@ -1,9 +1,9 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { useAuth } from '../auth/AuthProvider';
+import React from "react";
+import { NavLink } from "react-router-dom";
+import { useAuth } from "../auth/AuthProvider";
 
 export default function SideBar() {
-  const { logout, role } = useAuth();
+  const { logout, role, user } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -13,71 +13,141 @@ export default function SideBar() {
     }
   };
 
-  const linkClass = ({ isActive }) => 
-    `flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
-      isActive 
-      ? "bg-green-100 text-green-900 shadow-sm" 
-      : "text-gray-600 hover:bg-green-50 hover:text-green-800"
-    }`;
+  const linkClass = ({ isActive }) =>
+    isActive
+      ? "bg-slate-50 text-green-900 rounded-l-full ml-4 font-bold shadow-sm px-6 py-3 flex items-center gap-3 transition-all"
+      : "text-green-100/70 hover:text-white px-6 py-3 flex items-center gap-3 transition-colors hover:bg-green-900/50";
 
   return (
-    <aside className="w-64 bg-white border-r border-gray-100 flex flex-col h-full shadow-sm z-10 shrink-0">
-      <div className="p-6">
-        <h2 className="text-2xl font-extrabold text-green-800 tracking-tight font-headline flex items-center gap-2">
-          <span className="material-symbols-outlined text-green-700">agriculture</span>
+    <aside className="fixed left-0 top-0 h-full flex flex-col z-40 w-64 bg-green-950">
+      {/* Brand */}
+      <div className="px-6 py-8">
+        <h1
+          className="text-xl font-bold text-white tracking-tight flex items-center gap-2"
+          style={{ fontFamily: "Manrope, sans-serif" }}
+        >
+          <span className="material-symbols-outlined text-green-300">
+            agriculture
+          </span>
           Comisariato
-        </h2>
-        <p className="text-xs text-gray-400 mt-1 uppercase font-bold tracking-widest px-1">
-          {role || 'Portal Admin'}
+        </h1>
+        <p className="text-sm font-medium text-green-100/60 mt-1">
+          {role || "Admin Portal"}
         </p>
       </div>
 
-      <nav className="flex-1 flex flex-col gap-1 px-4 mt-2 overflow-y-auto w-full">
+      {/* Nav */}
+      <nav className="flex-1 mt-4 space-y-1 overflow-y-auto">
         <NavLink to="/" end className={linkClass}>
           <span className="material-symbols-outlined">dashboard</span>
-          Dashboard
+          <span
+            className="text-sm font-medium"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Dashboard
+          </span>
         </NavLink>
         <NavLink to="/productos" className={linkClass}>
           <span className="material-symbols-outlined">inventory_2</span>
-          Productos
+          <span
+            className="text-sm font-medium"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Productos
+          </span>
         </NavLink>
         <NavLink to="/empleados" className={linkClass}>
           <span className="material-symbols-outlined">group</span>
-          Empleados
+          <span
+            className="text-sm font-medium"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Empleados
+          </span>
         </NavLink>
         <NavLink to="/creditos" className={linkClass}>
           <span className="material-symbols-outlined">credit_card</span>
-          Créditos
+          <span
+            className="text-sm font-medium"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Créditos
+          </span>
         </NavLink>
         <NavLink to="/cuotas" className={linkClass}>
           <span className="material-symbols-outlined">payments</span>
-          Cuotas
+          <span
+            className="text-sm font-medium"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Cuotas
+          </span>
         </NavLink>
         <NavLink to="/reservas" className={linkClass}>
           <span className="material-symbols-outlined">event</span>
-          Reservas
+          <span
+            className="text-sm font-medium"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Reservas
+          </span>
         </NavLink>
 
+        {/* Admin section */}
         {role === "Administrador" && (
           <>
-            <div className="mt-4 mb-2 px-4 text-[0.65rem] font-bold text-gray-400 uppercase tracking-wider">
+            <div className="mt-6 mb-2 px-6 text-[0.65rem] font-bold text-green-100/40 uppercase tracking-wider">
               Administración
             </div>
             <NavLink to="/usuarios" className={linkClass}>
-              <span className="material-symbols-outlined">admin_panel_settings</span>
-              Usuarios
+              <span className="material-symbols-outlined">
+                admin_panel_settings
+              </span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Usuarios
+              </span>
             </NavLink>
           </>
         )}
       </nav>
 
-      <div className="p-4 border-t border-gray-100 mt-auto w-full">
-        <button 
+      {/* User + Logout */}
+      <div className="p-6 border-t border-green-900/30 space-y-4">
+        {/* User info */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-green-800 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-green-200 text-xl">
+              person
+            </span>
+          </div>
+          <div className="overflow-hidden">
+            <p
+              className="text-white text-sm font-bold truncate"
+              style={{ fontFamily: "Manrope, sans-serif" }}
+            >
+              {user?.displayName || "Admin"}
+            </p>
+            <p className="text-green-100/50 text-xs truncate">
+              {user?.email || ""}
+            </p>
+          </div>
+        </div>
+
+        {/* Logout */}
+        <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 w-full text-red-600 rounded-xl hover:bg-red-50 hover:text-red-700 transition-colors font-medium border border-transparent hover:border-red-100"
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-xl text-red-300 hover:bg-red-900/30 hover:text-red-200 transition-colors font-medium border border-transparent hover:border-red-900/40"
         >
-          <span className="material-symbols-outlined">logout</span>
-          Cerrar Sesión
+          <span className="material-symbols-outlined text-xl">logout</span>
+          <span
+            className="text-sm font-medium"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Cerrar Sesión
+          </span>
         </button>
       </div>
     </aside>
