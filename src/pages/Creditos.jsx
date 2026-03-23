@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 const RECENT_HISTORY = [
   {
@@ -10,7 +10,6 @@ const RECENT_HISTORY = [
     status: "Activo",
     statusClass: "bg-green-100 text-green-800",
     barClass: "bg-green-700",
-    action: "visibility",
   },
   {
     employee: "Elena Soriano",
@@ -21,7 +20,6 @@ const RECENT_HISTORY = [
     status: "Pagado",
     statusClass: "bg-slate-100 text-slate-600",
     barClass: "bg-slate-500",
-    action: "print",
   },
   {
     employee: "Samuel Vargas",
@@ -32,11 +30,88 @@ const RECENT_HISTORY = [
     status: "Activo",
     statusClass: "bg-green-100 text-green-800",
     barClass: "bg-green-700",
-    action: "visibility",
   },
 ];
 
 export default function Creditos() {
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedCredit, setSelectedCredit] = useState(null);
+
+  const handleViewDetail = (item) => {
+    setSelectedCredit(item);
+    setIsDetailOpen(true);
+  };
+
+  const handleExportReport = () => {
+    const sanitize = (text) =>
+      String(text)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\x20-\x7E]/g, "?");
+
+    const escapePdf = (text) => sanitize(text).replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+
+    const lines = [
+      "Reporte de Creditos - Comisariato Pro",
+      `Fecha: ${new Date().toLocaleDateString("es-HN")}`,
+      "",
+      "Codigo | Empleado | Area | Monto | Cuotas | Estado",
+      "----------------------------------------------------------------",
+      ...RECENT_HISTORY.map(
+        (item) =>
+          `${item.code} | ${item.employee} | ${item.role} | ${item.amount} | ${item.installments} | ${item.status}`,
+      ),
+    ];
+
+    const contentLines = [];
+    lines.forEach((line, index) => {
+      if (index === 0) {
+        contentLines.push(`(${escapePdf(line)}) Tj`);
+      } else {
+        contentLines.push("0 -18 Td");
+        contentLines.push(`(${escapePdf(line)}) Tj`);
+      }
+    });
+
+    const stream = `BT\n/F1 12 Tf\n50 800 Td\n${contentLines.join("\n")}\nET`;
+
+    const objects = [
+      "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+      "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+      "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+      "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+      `5 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
+    ];
+
+    let pdf = "%PDF-1.4\n";
+    const offsets = [0];
+
+    objects.forEach((obj) => {
+      offsets.push(pdf.length);
+      pdf += obj;
+    });
+
+    const xrefStart = pdf.length;
+    pdf += `xref\n0 ${objects.length + 1}\n`;
+    pdf += "0000000000 65535 f \n";
+
+    for (let i = 1; i < offsets.length; i += 1) {
+      pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+    }
+
+    pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+
+    const blob = new Blob([pdf], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "reporte_creditos.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8 -mt-6 md:-mt-10 pt-4 pb-4">
@@ -83,7 +158,10 @@ export default function Creditos() {
           </p>
         </div>
 
-        <button className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-5 py-3 text-sm font-bold text-green-800 hover:bg-slate-200 transition-colors">
+        <button
+          onClick={handleExportReport}
+          className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-5 py-3 text-sm font-bold text-green-800 hover:bg-slate-200 transition-colors"
+        >
           <span className="material-symbols-outlined text-[18px]">download</span>
           Exportar Reporte
         </button>
@@ -271,8 +349,11 @@ export default function Creditos() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="text-slate-500 hover:text-green-800 transition-colors">
-                          <span className="material-symbols-outlined text-[20px]">{item.action}</span>
+                        <button
+                          onClick={() => handleViewDetail(item)}
+                          className="text-slate-500 hover:text-green-800 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">visibility</span>
                         </button>
                       </td>
                     </tr>
@@ -290,6 +371,108 @@ export default function Creditos() {
           </article>
         </div>
       </section>
+
+      {isDetailOpen && selectedCredit && (
+        <div className="fixed inset-0 bg-green-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden">
+            <div className="p-8 bg-green-900 text-white flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-black">Detalle de Credito</h3>
+                <p className="text-green-200 text-[10px] font-bold uppercase tracking-widest">
+                  Informacion del financiamiento
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDetailOpen(false)}
+                className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-all"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-10 space-y-5">
+              <div className="grid grid-cols-12 gap-5">
+                <div className="col-span-12">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Empleado
+                  </label>
+                  <input
+                    readOnly
+                    value={selectedCredit.employee}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div className="col-span-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Codigo
+                  </label>
+                  <input
+                    readOnly
+                    value={selectedCredit.code}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div className="col-span-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Area
+                  </label>
+                  <input
+                    readOnly
+                    value={selectedCredit.role}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div className="col-span-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Monto
+                  </label>
+                  <input
+                    readOnly
+                    value={selectedCredit.amount}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none text-sm font-bold text-slate-700"
+                  />
+                </div>
+
+                <div className="col-span-6">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Estado
+                  </label>
+                  <div className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3">
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${selectedCredit.statusClass}`}
+                    >
+                      {selectedCredit.status}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="col-span-12">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">
+                    Cuotas
+                  </label>
+                  <input
+                    readOnly
+                    value={selectedCredit.installments}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none text-sm font-bold text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsDetailOpen(false)}
+                className="w-full bg-green-800 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-green-900 transition-all active:scale-95 uppercase tracking-widest mt-4"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
