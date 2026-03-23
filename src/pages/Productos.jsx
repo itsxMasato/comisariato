@@ -8,7 +8,7 @@ const INITIAL_PRODUCTS = [
     name: "Azúcar Refinada Estándar",
     sku: "AZU-001-ST",
     category: "Granos y Cereales",
-    price: "$12.50 / kg",
+    price: "L 12.50 / kg",
     stock: 1250,
     status: "ok",
     active: true,
@@ -19,7 +19,7 @@ const INITIAL_PRODUCTS = [
     name: "Fertilizante Nitrogenado",
     sku: "FER-992-AG",
     category: "Insumos",
-    price: "$450.00 / sac",
+    price: "L 450.00 / sac",
     stock: 12,
     status: "low",
     active: true,
@@ -30,7 +30,7 @@ const INITIAL_PRODUCTS = [
     name: 'Machete de Zafra 22"',
     sku: "HER-012-MQ",
     category: "Herramientas",
-    price: "$18.75 / ud",
+    price: "L 18.75 / ud",
     stock: 85,
     status: "ok",
     active: true,
@@ -41,7 +41,7 @@ const INITIAL_PRODUCTS = [
     name: "Arroz de Grano Largo",
     sku: "ARR-005-ST",
     category: "Granos y Cereales",
-    price: "$1.20 / kg",
+    price: "L 1.20 / kg",
     stock: 0,
     status: "out",
     active: true,
@@ -122,7 +122,7 @@ export default function Productos() {
       name: formData.get("name"),
       sku: formData.get("sku"),
       category: formData.get("category"),
-      price: `$${formData.get("price")} / ud`,
+      price: `L ${formData.get("price")} / ud`,
       stock: stockVal,
       status: stockVal === 0 ? "out" : stockVal < 20 ? "low" : "ok",
       active: true,
@@ -168,7 +168,7 @@ export default function Productos() {
         className="max-w-7xl mx-auto space-y-8"
       >
         {/* Título y Botón de Acción */}
-        <div className="flex justify-between items-end">
+        <div className="pt-2 md:pt-3 flex justify-between items-end">
           <div>
             <h2
               className="text-3xl font-black text-slate-900 tracking-tight"
