@@ -1,92 +1,262 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 
-const KPIS = [
-  {
-    icon: "payments",
-    label: "Creditos Activos",
-    value: "1,248",
-    sub: "Revisiones pendientes: 14",
-    badge: "+12%",
-    badgeClass: "bg-green-50 text-green-700",
-    iconBg: "bg-green-100 text-green-800",
-    border: "border-green-800",
-  },
-  {
-    icon: "account_balance_wallet",
-    label: "Pagos Mensuales",
-    value: "L 42.8k",
-    sub: "Incremento vs mes anterior",
-    badge: "Meta 85%",
-    badgeClass: "bg-amber-50 text-amber-700",
-    iconBg: "bg-amber-100 text-amber-800",
-    border: "border-amber-700",
-  },
-  {
-    icon: "inventory_2",
-    label: "Productos Stock Bajo",
-    value: "24",
-    sub: "8 ordenes sugeridas hoy",
-    badge: "Critico",
-    badgeClass: "bg-red-50 text-red-700",
-    iconBg: "bg-red-100 text-red-700",
-    border: "border-red-600",
-  },
-  {
-    icon: "group_work",
-    label: "Empleados Pendientes",
-    value: "86",
-    sub: "Por concepto de vales de campo",
-    badge: null,
-    badgeClass: "",
-    iconBg: "bg-sky-100 text-sky-700",
-    border: "border-sky-600",
-  },
+const STORAGE_PREFIX = "dashboard-transactions";
+const EMPLEADOS_ACTIVOS_BASE = 840;
+const PEOPLE = [
+  "Roberto Mendoza",
+  "Elena Castillo",
+  "Mario Gomez",
+  "Lucia Herrera",
+  "Pedro Ruiz",
+  "Ana Lagos",
+  "Rosa Mendez",
+  "Jorge Avila",
+  "Maria Solis",
+  "Daniela Ordonez",
+];
+const DEPARTMENTS = [
+  "Corte de Cana",
+  "Logistica",
+  "Mantenimiento",
+  "Calidad",
+  "Empaque",
+  "Bodega",
+  "Produccion",
 ];
 
-const BARS = [
-  { day: "LUN", h: "75%", fill: "40%" },
-  { day: "MAR", h: "100%", fill: "70%" },
-  { day: "MIE", h: "80%", fill: "55%" },
-  { day: "JUE", h: "50%", fill: "25%" },
-  { day: "VIE", h: "90%", fill: "80%" },
-  { day: "SAB", h: "65%", fill: "35%" },
-  { day: "DOM", h: "33%", fill: "15%" },
-];
+const getCurrentMonthKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
 
-const APPROVALS = [
-  {
-    name: "Roberto Mendoza",
-    id: "#88219",
-    amount: "L 1,200.00",
-    dept: "Corte de Cana",
-    status: "APROBADO",
-    statusClass: "bg-green-100 text-green-800",
-    dot: "bg-green-600",
-  },
-  {
-    name: "Elena Castillo",
-    id: "#88220",
-    amount: "L 450.00",
-    dept: "Logistica",
-    status: "PENDIENTE",
-    statusClass: "bg-orange-100 text-orange-800",
-    dot: "bg-orange-600",
-  },
-  {
-    name: "Mario Gomez",
-    id: "#88221",
-    amount: "L 2,800.00",
-    dept: "Mantenimiento",
-    status: "APROBADO",
-    statusClass: "bg-green-100 text-green-800",
-    dot: "bg-green-600",
-  },
-];
+const formatMonthLabel = (monthKey) => {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1, 1);
+  return new Intl.DateTimeFormat("es-HN", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+};
+
+const getWeekBucket = (isoDate) => {
+  const day = new Date(`${isoDate}T12:00:00`).getDate();
+  return Math.min(4, Math.ceil(day / 7));
+};
+
+const formatAmount = (value) =>
+  `L ${Number(value).toLocaleString("es-HN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+const formatCompactAmount = (value) =>
+  new Intl.NumberFormat("es-HN", {
+    style: "currency",
+    currency: "HNL",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  })
+    .format(value)
+    .replace("HNL", "L");
+
+const createSeedTransactions = (monthKey) => {
+  const seed = [
+    { day: 2, amount: 1200, status: "APROBADO" },
+    { day: 4, amount: 450, status: "PENDIENTE" },
+    { day: 8, amount: 980, status: "APROBADO" },
+    { day: 10, amount: 1680, status: "APROBADO" },
+    { day: 14, amount: 760, status: "PENDIENTE" },
+    { day: 18, amount: 2300, status: "APROBADO" },
+    { day: 22, amount: 680, status: "PENDIENTE" },
+    { day: 25, amount: 2050, status: "APROBADO" },
+    { day: 27, amount: 870, status: "APROBADO" },
+    { day: 29, amount: 540, status: "PENDIENTE" },
+  ];
+
+  return seed.map((item, index) => ({
+    id: `${monthKey}-${index + 1}`,
+    name: PEOPLE[index % PEOPLE.length],
+    dept: DEPARTMENTS[index % DEPARTMENTS.length],
+    amount: item.amount,
+    status: item.status,
+    date: `${monthKey}-${String(item.day).padStart(2, "0")}`,
+  }));
+};
+
+const loadTransactionsForMonth = (monthKey) => {
+  if (typeof window === "undefined") return createSeedTransactions(monthKey);
+  const key = `${STORAGE_PREFIX}:${monthKey}`;
+  const raw = window.localStorage.getItem(key);
+
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Ignore malformed data and regenerate month data.
+    }
+  }
+
+  const seeded = createSeedTransactions(monthKey);
+  window.localStorage.setItem(key, JSON.stringify(seeded));
+  return seeded;
+};
+
+const saveTransactionsForMonth = (monthKey, transactions) => {
+  if (typeof window === "undefined") return;
+  const key = `${STORAGE_PREFIX}:${monthKey}`;
+  window.localStorage.setItem(key, JSON.stringify(transactions));
+};
+
+const buildMonthlyModel = (transactions) => {
+  const weeklyCompilation = [1, 2, 3, 4].map((week) => ({
+    label: `SEM ${week}`,
+    solicitudes: 0,
+    cobros: 0,
+  }));
+
+  transactions.forEach((tx) => {
+    const bucket = getWeekBucket(tx.date) - 1;
+    weeklyCompilation[bucket].solicitudes += tx.amount;
+    if (tx.status === "APROBADO") weeklyCompilation[bucket].cobros += tx.amount;
+  });
+
+  const pagosMensuales = transactions
+    .filter((tx) => tx.status === "APROBADO")
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const revisionesPendientes = transactions.filter(
+    (tx) => tx.status === "PENDIENTE",
+  ).length;
+  const reservasDelMes = new Set(transactions.map((tx) => tx.name)).size;
+  const creditosActivos = 1100 + transactions.length * 3;
+  const metaCobranza =
+    transactions.length > 0
+      ? Math.round(
+          (transactions.filter((tx) => tx.status === "APROBADO").length /
+            transactions.length) *
+            100,
+        )
+      : 0;
+
+  const approvals = [...transactions]
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, 3)
+    .map((tx, idx) => ({
+      name: tx.name,
+      id: `#${String(90000 + idx + 1)}`,
+      amount: formatAmount(tx.amount),
+      dept: tx.dept,
+      status: tx.status,
+      statusClass:
+        tx.status === "APROBADO"
+          ? "bg-green-100 text-green-800"
+          : "bg-orange-100 text-orange-800",
+      dot: tx.status === "APROBADO" ? "bg-green-600" : "bg-orange-600",
+    }));
+
+  return {
+    creditosActivos,
+    revisionesPendientes,
+    pagosMensuales,
+    metaCobranza,
+    empleadosActivos: EMPLEADOS_ACTIVOS_BASE,
+    empleadosConReserva: reservasDelMes,
+    weeklyCompilation,
+    approvals,
+  };
+};
+
+const formatMoney = (value) =>
+  `L ${Number(value).toLocaleString("es-HN", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}k`;
 
 export default function Dashboard() {
+  const [monthKey, setMonthKey] = useState(() => getCurrentMonthKey());
+  const [transactions, setTransactions] = useState(() =>
+    loadTransactionsForMonth(getCurrentMonthKey()),
+  );
+
+  useEffect(() => {
+    saveTransactionsForMonth(monthKey, transactions);
+  }, [monthKey, transactions]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const activeMonth = getCurrentMonthKey();
+      if (activeMonth !== monthKey) {
+        setMonthKey(activeMonth);
+        setTransactions(loadTransactionsForMonth(activeMonth));
+      }
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, [monthKey]);
+
+  const monthLabel = useMemo(() => formatMonthLabel(monthKey), [monthKey]);
+  const monthlyData = useMemo(
+    () => buildMonthlyModel(transactions),
+    [transactions],
+  );
+  const maxSolicitudes = Math.max(
+    ...monthlyData.weeklyCompilation.map((week) => week.solicitudes),
+    1,
+  );
+
+  const kpis = [
+    {
+      icon: "payments",
+      label: "Creditos Activos",
+      value: monthlyData.creditosActivos.toLocaleString("es-HN"),
+      sub: `Revisiones pendientes: ${monthlyData.revisionesPendientes}`,
+      badge: "+12%",
+      badgeClass: "bg-green-50 text-green-700",
+      iconBg: "bg-green-100 text-green-800",
+      border: "border-green-800",
+    },
+    {
+      icon: "account_balance_wallet",
+      label: "Pagos Mensuales",
+      value: formatMoney(monthlyData.pagosMensuales / 1000),
+      sub: "Compilacion del mes seleccionado",
+      badge: `Meta ${monthlyData.metaCobranza}%`,
+      badgeClass: "bg-amber-50 text-amber-700",
+      iconBg: "bg-amber-100 text-amber-800",
+      border: "border-amber-700",
+    },
+    {
+      icon: "event_note",
+      label: "Reservas del Mes",
+      value: monthlyData.empleadosConReserva.toLocaleString("es-HN"),
+      sub: "Solicitudes registradas durante el mes",
+      badge: "Mensual",
+      badgeClass: "bg-sky-50 text-sky-700",
+      iconBg: "bg-sky-100 text-sky-700",
+      border: "border-sky-600",
+    },
+    {
+      icon: "groups",
+      label: "Empleados Activos",
+      value: monthlyData.empleadosActivos.toLocaleString("es-HN"),
+      sub: "Colaboradores activos en planilla",
+      badge: null,
+      badgeClass: "",
+      iconBg: "bg-emerald-100 text-emerald-700",
+      border: "border-emerald-700",
+    },
+  ];
+
   return (
-    <div className="bg-gray-50 text-gray-900 space-y-8">
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="bg-gray-50 text-gray-900 space-y-8"
+    >
       <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8 -mt-6 md:-mt-10 pt-4 pb-4">
         <div className="relative w-full max-w-md mt-2 md:mt-0">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -115,19 +285,32 @@ export default function Dashboard() {
       </header>
 
       <section className="pt-2 md:pt-3 mb-10">
-        <h2
-          className="text-4xl font-extrabold text-green-900 tracking-tight"
-          style={{ fontFamily: "Manrope, sans-serif" }}
-        >
-          Panel General
-        </h2>
-        <p className="text-slate-500 font-medium mt-1">
-          Resumen operativo del comisariato
-        </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2
+              className="text-3xl font-black text-slate-900 tracking-tight"
+              style={{ fontFamily: "Manrope, sans-serif" }}
+            >
+              Dashboard
+            </h2>
+            <p className="text-slate-500 font-medium">
+              Gestion mensual de indicadores operativos del comisariato.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              Filtro mensual automatico
+            </label>
+            <span className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-800 capitalize">
+              {monthLabel}
+            </span>
+          </div>
+        </div>
       </section>
 
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {KPIS.map((kpi) => (
+        {kpis.map((kpi) => (
           <article
             key={kpi.label}
             className={`bg-white p-6 rounded-2xl shadow-sm border-l-4 ${kpi.border}`}
@@ -170,29 +353,53 @@ export default function Dashboard() {
                   Actividad Semanal
                 </h4>
                 <p className="text-sm text-slate-500">Flujo de creditos vs cobranza</p>
+                <div className="mt-2 flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
+                  <span className="inline-flex items-center gap-1 text-slate-500">
+                    <span className="h-2 w-2 rounded-full bg-green-900/30" />
+                    Monto Solicitado
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-green-800">
+                    <span className="h-2 w-2 rounded-full bg-green-700/70" />
+                    Monto Cobrado
+                  </span>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button className="px-3 py-1 text-xs font-bold bg-white rounded-lg shadow-sm border border-slate-100">
-                  7D
+                  Mes actual
                 </button>
                 <button className="px-3 py-1 text-xs font-bold text-slate-400 hover:bg-white rounded-lg transition-all">
-                  30D
+                  {monthLabel}
                 </button>
               </div>
             </div>
             <div className="flex items-end justify-between h-48 gap-4 pt-4">
-              {BARS.map((bar) => (
+              {monthlyData.weeklyCompilation.map((week) => (
                 <div
-                  key={bar.day}
+                  key={week.label}
                   className="flex-1 bg-green-900/10 rounded-t-lg relative group"
-                  style={{ height: bar.h }}
+                  style={{
+                    height: `${Math.max(32, (week.solicitudes / maxSolicitudes) * 100)}%`,
+                  }}
                 >
+                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-black text-slate-700">
+                    {formatCompactAmount(week.solicitudes)}
+                  </div>
                   <div
                     className="absolute inset-x-0 bottom-0 bg-green-800/40 rounded-t-lg transition-all group-hover:bg-green-800/60"
-                    style={{ height: bar.fill }}
+                    style={{
+                      height: `${
+                        week.solicitudes > 0
+                          ? Math.max(15, (week.cobros / week.solicitudes) * 100)
+                          : 15
+                      }%`,
+                    }}
                   />
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-green-900/80">
+                    {formatCompactAmount(week.cobros)}
+                  </div>
                   <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400">
-                    {bar.day}
+                    {week.label}
                   </div>
                 </div>
               ))}
@@ -226,7 +433,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {APPROVALS.map((row) => (
+                  {monthlyData.approvals.map((row) => (
                     <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
                       <td className="px-8 py-4">
                         <p className="text-sm font-bold text-gray-900">{row.name}</p>
@@ -251,56 +458,6 @@ export default function Dashboard() {
         </div>
 
         <div className="space-y-6">
-          <article className="bg-slate-100 p-6 rounded-2xl">
-            <h4
-              className="text-lg font-bold text-gray-900 mb-6"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Alerta de Stock
-            </h4>
-            <div className="space-y-4">
-              {[
-                {
-                  icon: "inventory_2",
-                  iconColor: "text-green-800",
-                  name: "Arroz Premium 25kg",
-                  qty: "Quedan 5 unidades",
-                },
-                {
-                  icon: "local_drink",
-                  iconColor: "text-amber-700",
-                  name: "Aceite Vegetal 1L",
-                  qty: "Quedan 2 unidades",
-                },
-              ].map((item) => (
-                <div
-                  key={item.name}
-                  className="flex items-center gap-4 p-4 bg-white rounded-xl shadow-sm border border-slate-100"
-                >
-                  <div
-                    className={`w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center ${item.iconColor}`}
-                  >
-                    <span className="material-symbols-outlined">{item.icon}</span>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-gray-900">{item.name}</p>
-                    <p className="text-xs text-red-600 font-bold mt-0.5">{item.qty}</p>
-                  </div>
-                  <button className="text-slate-400 hover:text-green-800 transition-all">
-                    <span className="material-symbols-outlined">add_shopping_cart</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-            <Link
-              to="/productos"
-              className="inline-flex items-center justify-center w-full mt-6 py-3 bg-green-800 hover:bg-green-900 text-white text-xs font-bold rounded-xl transition-all"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Gestionar Inventario
-            </Link>
-          </article>
-
           <article className="relative rounded-2xl h-48 overflow-hidden group">
             <img
               alt="Productos del comisariato"
@@ -326,32 +483,34 @@ export default function Dashboard() {
             </div>
           </article>
 
-          <article
-            className="text-white p-8 rounded-2xl"
-            style={{ background: "linear-gradient(135deg, #6c493d 0%, #523327 100%)" }}
-          >
-            <span className="material-symbols-outlined text-amber-200">warning</span>
+          <article className="bg-slate-100 p-6 rounded-2xl">
             <h4
-              className="text-lg font-bold mt-4"
+              className="text-lg font-bold text-gray-900"
               style={{ fontFamily: "Manrope, sans-serif" }}
             >
-              Saldos de Empleados
+              Resumen del Mes
             </h4>
-            <p className="text-amber-100/80 text-xs mt-2 leading-relaxed">
-              Existen 12 empleados con saldos acumulados por encima del limite de
-              credito permitido.
+            <p className="text-slate-500 text-xs mt-2 leading-relaxed">
+              Datos generales del mes seleccionado para seguimiento operativo.
             </p>
-            <hr className="my-6 border-white/10" />
-            <div className="flex justify-between items-center">
-              <span
-                className="text-xl font-bold"
-                style={{ fontFamily: "Manrope, sans-serif" }}
-              >
-                L 12,450.20
-              </span>
-              <span className="text-[10px] font-bold px-2 py-1 bg-white/10 rounded-lg">
-                REVISAR
-              </span>
+            <hr className="my-6 border-slate-200" />
+            <div className="space-y-4">
+              <div className="flex justify-between items-center text-sm">
+                <span className="font-medium text-slate-500">Empleados activos</span>
+                <span className="font-black text-slate-900">
+                  {monthlyData.empleadosActivos.toLocaleString("es-HN")}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="font-medium text-slate-500">Reservas del mes</span>
+                <span className="font-black text-slate-900">
+                  {monthlyData.empleadosConReserva.toLocaleString("es-HN")}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="font-medium text-slate-500">Meta de cobranza</span>
+                <span className="font-black text-green-800">{monthlyData.metaCobranza}%</span>
+              </div>
             </div>
           </article>
         </div>
@@ -363,6 +522,6 @@ export default function Dashboard() {
       >
         <span className="material-symbols-outlined">add</span>
       </button>
-    </div>
+    </motion.div>
   );
 }
