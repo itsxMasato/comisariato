@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { motion } from "framer-motion";
 
 // ── Datos Iniciales (Mock con la nueva estructura) ──
 const INITIAL_DATA = [
@@ -80,16 +81,21 @@ export default function Empleados() {
 
     return (
         <div className="bg-gray-50 text-gray-900 min-h-screen p-8 font-sans">
-            <div className="max-w-7xl mx-auto space-y-10">
+            <motion.div
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+                className="max-w-7xl mx-auto space-y-10"
+            >
 
                 {/* Page Header */}
                 <div className="flex justify-between items-end">
                     <div>
-                        <h2 className="text-3xl font-extrabold text-green-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>
-                            Gestión de Empleados
+                        <h2 className="text-3xl font-black text-slate-900 tracking-tight" style={{ fontFamily: "Manrope, sans-serif" }}>
+                            Empleados
                         </h2>
-                        <p className="text-slate-500 mt-2 text-sm">
-                            Administre los límites de crédito y estados de cuenta de su personal.
+                        <p className="text-slate-500 font-medium">
+                            Gestion de colaboradores, salarios y credito automatico por empleado.
                         </p>
                     </div>
                     <button
@@ -173,7 +179,7 @@ export default function Empleados() {
                         </tbody>
                     </table>
                 </div>
-            </div>
+            </motion.div>
 
             {/* Modal - Todos los campos solicitados */}
             {isModalOpen && (
