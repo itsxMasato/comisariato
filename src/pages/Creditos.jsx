@@ -73,7 +73,10 @@ const calcCuota = (monto, cuotas) => (cuotas > 0 ? monto / cuotas : 0);
 const calcSaldo = (monto, pagadas, cuotas) =>
   monto - pagadas * calcCuota(monto, cuotas);
 const fmt = (n) =>
-  `L ${Number(n).toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `L ${Number(n).toLocaleString("es-HN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 const statusConfig = (pagadas, cuotas) => {
   if (pagadas >= cuotas)
     return {
@@ -93,6 +96,292 @@ const statusConfig = (pagadas, cuotas) => {
     bar: "bg-green-700",
   };
 };
+
+// ── PDF EJECUTIVO ─────────────────────────────────────────────────────────────
+function buildExecutivePDF(credits) {
+  const sanitize = (t) =>
+    String(t)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\x20-\x7E]/g, "?");
+  const esc = (t) =>
+    sanitize(t)
+      .replace(/\\/g, "\\\\")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)");
+
+  const W = 595,
+    H = 842;
+  const DARK = "0.071 0.114 0.243"; // #122144 — azul marino oscuro
+  const MID = "0.118 0.176 0.314"; // #1E2D50
+  const ACCENT = "0.055 0.647 0.514"; // #0EA583 — verde esmeralda
+  const LIGHT = "0.961 0.965 0.973"; // #F5F6F8
+  const MUTED = "0.431 0.478 0.557"; // #6E7A8E
+  const WHITE = "1 1 1";
+  const RED = "0.937 0.267 0.267"; // mora
+  const AMBER = "0.957 0.620 0.071"; // en proceso
+
+  const totalCartera = credits
+    .filter((c) => c.status === "Activo" || c.status === "Mora")
+    .reduce((s, c) => s + calcSaldo(c.montoTotal, c.pagadas, c.cuotas), 0);
+  const totalRecaudado = credits.reduce(
+    (s, c) => s + c.pagadas * calcCuota(c.montoTotal, c.cuotas),
+    0,
+  );
+  const totalMora = credits.filter((c) => c.status === "Mora").length;
+  const totalActivos = credits.filter((c) => c.status === "Activo").length;
+
+  const now = new Date();
+  const fecha = now.toLocaleDateString("es-HN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const folio = `RPT-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${Math.floor(Math.random() * 9000 + 1000)}`;
+
+  // ── helpers de stream ─────────────────────────────────────────────────────
+  const ops = [];
+  const push = (...lines) => lines.forEach((l) => ops.push(l));
+
+  // filled rect
+  const rect = (x, y, w, h, r, g, b) => {
+    push(`${r} ${g} ${b} rg`, `${x} ${y} ${w} ${h} re`, "f");
+  };
+
+  // stroked rect (border only)
+  const rectStroke = (x, y, w, h, r, g, b, lw = 0.5) => {
+    push(`${lw} w`, `${r} ${g} ${b} RG`, `${x} ${y} ${w} ${h} re`, "S");
+  };
+
+  // horizontal rule
+  const hline = (x, y, len, r, g, b, lw = 0.5) => {
+    push(
+      `${lw} w`,
+      `${r} ${g} ${b} RG`,
+      `${x} ${y} m`,
+      `${x + len} ${y} l`,
+      "S",
+    );
+  };
+
+  // text helpers — BT/ET wrapping
+  const text = (str, x, y, size, r, g, b, font = "F1") => {
+    push(
+      "BT",
+      `/${font} ${size} Tf`,
+      `${r} ${g} ${b} rg`,
+      `${x} ${y} Td`,
+      `(${esc(str)}) Tj`,
+      "ET",
+    );
+  };
+  const textR = (str, x, y, size, r, g, b, font = "F1") => {
+    // right-aligned: compute approx width (each char ≈ size * 0.5)
+    const approxW = str.length * size * 0.5;
+    text(str, x - approxW, y, size, r, g, b, font);
+  };
+
+  // ── HEADER BAND ──────────────────────────────────────────────────────────
+  rect(0, H - 90, W, 90, ...DARK.split(" "));
+
+  // thin accent strip at top
+  rect(0, H - 4, W, 4, ...ACCENT.split(" "));
+
+  // logo area — circle mark
+  rect(36, H - 72, 36, 36, ...ACCENT.split(" "));
+  text("CP", 44, H - 60, 14, ...WHITE.split(" "), "F2");
+
+  // company name
+  text("COMISARIATO PRO", 82, H - 52, 14, ...WHITE.split(" "), "F2");
+  text(
+    "Azucarera del Norte  |  Region Central",
+    82,
+    H - 67,
+    8,
+    ...MUTED.split(" "),
+  );
+
+  // report title (right side)
+  textR(
+    "REPORTE EJECUTIVO DE CREDITOS",
+    W - 36,
+    H - 52,
+    10,
+    ...WHITE.split(" "),
+    "F2",
+  );
+  textR(`Folio: ${folio}`, W - 36, H - 66, 8, ...MUTED.split(" "));
+  textR(`Emitido: ${fecha}`, W - 36, H - 77, 8, ...MUTED.split(" "));
+
+  // ── KPI CARDS (4 tarjetas) ───────────────────────────────────────────────
+  const kpiY = H - 160;
+  const kpiData = [
+    { label: "Cartera activa", value: fmt(totalCartera), color: ACCENT },
+    {
+      label: "Total recaudado",
+      value: fmt(totalRecaudado),
+      color: "0.118 0.447 0.996",
+    },
+    { label: "Creditos activos", value: `${totalActivos}`, color: ACCENT },
+    { label: "En mora", value: `${totalMora}`, color: RED },
+  ];
+  const cardW = 118,
+    cardGap = 10,
+    startX = 36;
+  kpiData.forEach((k, i) => {
+    const cx = startX + i * (cardW + cardGap);
+    // card bg
+    rect(cx, kpiY - 44, cardW, 54, ...LIGHT.split(" "));
+    // left accent bar
+    rect(cx, kpiY - 44, 3, 54, ...k.color.split(" "));
+    // label
+    text(k.label, cx + 10, kpiY - 38, 7, ...MUTED.split(" "));
+    // value
+    text(k.value, cx + 10, kpiY - 26, 11, ...DARK.split(" "), "F2");
+  });
+
+  // ── SECTION TITLE ────────────────────────────────────────────────────────
+  const secY = kpiY - 70;
+  rect(36, secY - 2, 3, 14, ...ACCENT.split(" "));
+  text("DETALLE DE CREDITOS", 44, secY, 10, ...DARK.split(" "), "F2");
+  hline(36, secY - 8, W - 72, ...LIGHT.split(" "), 1);
+
+  // ── TABLE HEADER ─────────────────────────────────────────────────────────
+  const thY = secY - 30;
+  rect(36, thY - 4, W - 72, 18, ...DARK.split(" "));
+
+  const cols = [
+    { label: "EMPLEADO / AREA", x: 44, w: 110 },
+    { label: "CODIGO", x: 162, w: 60 },
+    { label: "MONTO TOTAL", x: 228, w: 80 },
+    { label: "SALDO PENDIENTE", x: 312, w: 80 },
+    { label: "CUOTAS", x: 396, w: 60 },
+    { label: "ESTADO", x: 460, w: 72 },
+  ];
+  cols.forEach((c) =>
+    text(c.label, c.x, thY + 2, 6.5, ...WHITE.split(" "), "F2"),
+  );
+
+  // ── TABLE ROWS ───────────────────────────────────────────────────────────
+  let rowY = thY - 20;
+  credits.forEach((c, i) => {
+    const saldo = calcSaldo(c.montoTotal, c.pagadas, c.cuotas);
+    const pct = Math.round((c.pagadas / c.cuotas) * 100);
+
+    // alternating row bg
+    if (i % 2 === 0) rect(36, rowY - 8, W - 72, 22, ...LIGHT.split(" "));
+
+    // data
+    text(c.employee, cols[0].x, rowY + 2, 8, ...DARK.split(" "), "F2");
+    text(c.role, cols[0].x, rowY - 6, 6.5, ...MUTED.split(" "));
+    text(c.code, cols[1].x, rowY, 8, ...DARK.split(" "));
+    text(fmt(c.montoTotal), cols[2].x, rowY, 8, ...DARK.split(" "), "F2");
+    text(
+      fmt(saldo),
+      cols[3].x,
+      rowY,
+      8,
+      ...(saldo > 0 ? DARK : ACCENT).split(" "),
+      "F2",
+    );
+    text(
+      `${c.pagadas}/${c.cuotas}  (${pct}%)`,
+      cols[4].x,
+      rowY,
+      8,
+      ...DARK.split(" "),
+    );
+
+    // status pill bg
+    const sColor =
+      c.status === "Activo" ? ACCENT : c.status === "Mora" ? RED : MUTED;
+    rect(cols[5].x - 2, rowY - 7, 54, 14, ...sColor.split(" "));
+    text(c.status, cols[5].x + 4, rowY - 1, 7, ...WHITE.split(" "), "F2");
+
+    // mini progress bar bg + fill
+    const barBg = 36,
+      barY = rowY - 18,
+      barW = W - 72;
+    rect(barBg, barY, barW, 2, 0.878, 0.878, 0.91);
+    rect(barBg, barY, (barW * pct) / 100, 2, ...sColor.split(" "));
+
+    rowY -= 28;
+  });
+
+  // bottom border of table
+  hline(36, rowY + 14, W - 72, ...DARK.split(" "), 0.5);
+
+  // ── RESUMEN SECTION ──────────────────────────────────────────────────────
+  const sumY = rowY - 20;
+  rect(36, sumY - 42, W - 72, 50, ...DARK.split(" "));
+
+  text("RESUMEN FINANCIERO", 46, sumY - 8, 8, ...WHITE.split(" "), "F2");
+  hline(46, sumY - 14, W - 92, ...MUTED.split(" "), 0.3);
+
+  const sumItems = [
+    { label: "Total creditos registrados:", value: `${credits.length}` },
+    {
+      label: "Monto bruto emitido:",
+      value: fmt(credits.reduce((s, c) => s + c.montoTotal, 0)),
+    },
+    { label: "Total recaudado:", value: fmt(totalRecaudado) },
+    { label: "Cartera pendiente:", value: fmt(totalCartera) },
+  ];
+  sumItems.forEach((item, i) => {
+    const sx = i < 2 ? 46 : W / 2 + 10;
+    const sy = i < 2 ? sumY - 24 - i * 12 : sumY - 24 - (i - 2) * 12;
+    text(item.label, sx, sy, 7.5, ...MUTED.split(" "));
+    text(item.value, sx + 140, sy, 7.5, ...WHITE.split(" "), "F2");
+  });
+
+  // ── FOOTER ───────────────────────────────────────────────────────────────
+  const ftY = 36;
+  hline(36, ftY + 14, W - 72, ...MUTED.split(" "), 0.3);
+  text(
+    "Documento generado automaticamente por Comisariato Pro",
+    36,
+    ftY,
+    7,
+    ...MUTED.split(" "),
+  );
+  textR(`${folio}  |  ${fecha}`, W - 36, ftY, 7, ...MUTED.split(" "));
+
+  // ── ASSEMBLE PDF ─────────────────────────────────────────────────────────
+  const streamStr = ops.join("\n");
+
+  const objects = [
+    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+    [
+      "3 0 obj",
+      "<< /Type /Page /Parent 2 0 R",
+      `   /MediaBox [0 0 ${W} ${H}]`,
+      "   /Resources <<",
+      "     /Font << /F1 4 0 R /F2 5 0 R >>",
+      "   >>",
+      "   /Contents 6 0 R",
+      ">>\nendobj\n",
+    ].join("\n"),
+    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n",
+    `6 0 obj\n<< /Length ${streamStr.length} >>\nstream\n${streamStr}\nendstream\nendobj\n`,
+  ];
+
+  let pdf = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((o) => {
+    offsets.push(pdf.length);
+    pdf += o;
+  });
+  const xrefStart = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i < offsets.length; i++)
+    pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+
+  return pdf;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function Creditos() {
   const [credits, setCredits] = useState(INITIAL_CREDITS);
@@ -225,55 +514,13 @@ export default function Creditos() {
   };
 
   const handleExportReport = () => {
-    const sanitize = (t) =>
-      String(t)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\x20-\x7E]/g, "?");
-    const esc = (t) =>
-      sanitize(t)
-        .replace(/\\/g, "\\\\")
-        .replace(/\(/g, "\\(")
-        .replace(/\)/g, "\\)");
-    const lines = [
-      "Reporte de Creditos - Comisariato Pro",
-      `Fecha: ${new Date().toLocaleDateString("es-HN")}`,
-      "",
-      "Codigo | Empleado | Monto | Saldo Pendiente | Cuotas | Estado",
-      "---------------------------------------------------------------------",
-      ...credits.map(
-        (c) =>
-          `${c.code} | ${c.employee} | ${fmt(c.montoTotal)} | ${fmt(calcSaldo(c.montoTotal, c.pagadas, c.cuotas))} | ${c.pagadas}/${c.cuotas} | ${c.status}`,
-      ),
-    ];
-    const content = lines
-      .map((l, i) => (i === 0 ? `(${esc(l)}) Tj` : `0 -18 Td\n(${esc(l)}) Tj`))
-      .join("\n");
-    const stream = `BT\n/F1 11 Tf\n50 800 Td\n${content}\nET`;
-    const objs = [
-      "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-      "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-      "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
-      "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-      `5 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
-    ];
-    let pdf = "%PDF-1.4\n";
-    const offsets = [0];
-    objs.forEach((o) => {
-      offsets.push(pdf.length);
-      pdf += o;
-    });
-    const xref = pdf.length;
-    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
-    for (let i = 1; i < offsets.length; i++)
-      pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
-    pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    const pdf = buildExecutivePDF(credits);
     const url = URL.createObjectURL(
       new Blob([pdf], { type: "application/pdf" }),
     );
     const link = Object.assign(document.createElement("a"), {
       href: url,
-      download: "reporte_creditos.pdf",
+      download: "reporte_ejecutivo_creditos.pdf",
     });
     document.body.appendChild(link);
     link.click();
@@ -396,7 +643,6 @@ export default function Creditos() {
           </div>
 
           <div className="space-y-5">
-            {/* Empleado */}
             <div>
               <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
                 Empleado
@@ -422,7 +668,6 @@ export default function Creditos() {
               </div>
             </div>
 
-            {/* Monto + Cuotas */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
@@ -456,7 +701,6 @@ export default function Creditos() {
               </div>
             </div>
 
-            {/* Plazo */}
             <div>
               <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
                 Plazo de Pago
@@ -479,7 +723,6 @@ export default function Creditos() {
               </div>
             </div>
 
-            {/* Fecha inicio */}
             <div>
               <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
                 Fecha de Inicio
@@ -494,7 +737,6 @@ export default function Creditos() {
               />
             </div>
 
-            {/* Descripcion */}
             <div>
               <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
                 Motivo / Descripcion
@@ -510,7 +752,6 @@ export default function Creditos() {
               />
             </div>
 
-            {/* Calculo automatico */}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <span className="text-sm text-slate-600">Tasa de Interes</span>
@@ -708,7 +949,6 @@ export default function Creditos() {
             </div>
 
             <div className="overflow-y-auto p-8 space-y-6">
-              {/* Info grid */}
               <div className="grid grid-cols-2 gap-4">
                 {[
                   ["Empleado", liveCredit.employee],
@@ -740,7 +980,6 @@ export default function Creditos() {
                 </div>
               </div>
 
-              {/* Saldo + progreso */}
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-slate-600 font-bold">
@@ -787,7 +1026,6 @@ export default function Creditos() {
                 </span>
               </div>
 
-              {/* Historial de pagos */}
               <div>
                 <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">
                   Historial de Pagos
@@ -832,7 +1070,6 @@ export default function Creditos() {
                 )}
               </div>
 
-              {/* Botones */}
               <div className="flex gap-3">
                 {liveCredit.pagadas < liveCredit.cuotas && (
                   <button
