@@ -1,10 +1,5 @@
 import React, { useState } from "react";
-
-const EMPLEADOS = [
-  { id: 1, nombre: "Ricardo Mendoza", area: "Cosecha" },
-  { id: 2, nombre: "Elena Soriano", area: "Empaque" },
-  { id: 3, nombre: "Samuel Vargas", area: "Riego" },
-];
+import { motion } from "framer-motion";
 
 const INITIAL_CREDITS = [
   {
@@ -62,10 +57,10 @@ const INITIAL_CREDITS = [
     plazo: "Quincenal",
     fechaInicio: "2026-02-15",
     descripcion: "Reparacion de vivienda",
-    status: "Mora",
-    statusClass: "bg-amber-100 text-amber-800",
-    barClass: "bg-amber-600",
-    historialPagos: [{ fecha: "2026-03-01", monto: 104.17, cuota: 1 }],
+    status: "Activo",
+    statusClass: "bg-green-100 text-green-800",
+    barClass: "bg-green-700",
+    historialPagos: [],
   },
 ];
 
@@ -81,12 +76,6 @@ const statusConfig = (pagadas, cuotas) => {
       cls: "bg-slate-100 text-slate-600",
       bar: "bg-slate-500",
     };
-  if (pagadas === 0)
-    return {
-      label: "Mora",
-      cls: "bg-amber-100 text-amber-800",
-      bar: "bg-amber-600",
-    };
   return {
     label: "Activo",
     cls: "bg-green-100 text-green-800",
@@ -97,26 +86,9 @@ const statusConfig = (pagadas, cuotas) => {
 export default function Creditos() {
   const [credits, setCredits] = useState(INITIAL_CREDITS);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [isPagoOpen, setIsPagoOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
-  const [fechaPago, setFechaPago] = useState(
-    new Date().toISOString().slice(0, 10),
-  );
-
-  const [form, setForm] = useState({
-    empleadoId: "",
-    monto: "",
-    cuotas: "6",
-    plazo: "Mensual",
-    fechaInicio: new Date().toISOString().slice(0, 10),
-    descripcion: "",
-  });
-
-  const montoNum = parseFloat(form.monto) || 0;
-  const cuotasNum = parseInt(form.cuotas) || 1;
-  const pagoEstim = calcCuota(montoNum, cuotasNum);
 
   const creditosFiltrados = credits.filter((c) => {
     const matchSearch =
@@ -127,97 +99,12 @@ export default function Creditos() {
   });
 
   const totalCartera = credits
-    .filter((c) => c.status === "Activo" || c.status === "Mora")
+    .filter((c) => c.status === "Activo")
     .reduce((s, c) => s + calcSaldo(c.montoTotal, c.pagadas, c.cuotas), 0);
   const totalRecaudado = credits.reduce(
     (s, c) => s + c.pagadas * calcCuota(c.montoTotal, c.cuotas),
     0,
   );
-  const enMora = credits.filter((c) => c.status === "Mora").length;
-
-  const handleAprobar = () => {
-    if (!form.empleadoId || !form.monto || montoNum <= 0) {
-      alert("Complete todos los campos obligatorios.");
-      return;
-    }
-    const emp = EMPLEADOS.find((e) => e.id === parseInt(form.empleadoId));
-    const cfg = statusConfig(0, cuotasNum);
-    const nuevo = {
-      id: Date.now(),
-      employee: emp.nombre,
-      role: emp.area,
-      code: `#CR-${Math.floor(1000 + Math.random() * 9000)}`,
-      montoTotal: montoNum,
-      cuotas: cuotasNum,
-      pagadas: 0,
-      plazo: form.plazo,
-      fechaInicio: form.fechaInicio,
-      descripcion: form.descripcion,
-      status: cfg.label,
-      statusClass: cfg.cls,
-      barClass: cfg.bar,
-      historialPagos: [],
-    };
-    setCredits((prev) => [nuevo, ...prev]);
-    setForm({
-      empleadoId: "",
-      monto: "",
-      cuotas: "6",
-      plazo: "Mensual",
-      fechaInicio: new Date().toISOString().slice(0, 10),
-      descripcion: "",
-    });
-  };
-
-  const handleRegistrarPago = () => {
-    if (!selected) return;
-    setCredits((prev) =>
-      prev.map((c) => {
-        if (c.id !== selected.id) return c;
-        const nuevasPagadas = c.pagadas + 1;
-        const cfg = statusConfig(nuevasPagadas, c.cuotas);
-        return {
-          ...c,
-          pagadas: nuevasPagadas,
-          status: cfg.label,
-          statusClass: cfg.cls,
-          barClass: cfg.bar,
-          historialPagos: [
-            ...c.historialPagos,
-            {
-              fecha: fechaPago,
-              monto: parseFloat(calcCuota(c.montoTotal, c.cuotas).toFixed(2)),
-              cuota: nuevasPagadas,
-            },
-          ],
-        };
-      }),
-    );
-    setSelected((prev) => {
-      const updated = credits.find((c) => c.id === prev.id);
-      if (!updated) return prev;
-      const nuevasPagadas = updated.pagadas + 1;
-      const cfg = statusConfig(nuevasPagadas, updated.cuotas);
-      return {
-        ...updated,
-        pagadas: nuevasPagadas,
-        status: cfg.label,
-        statusClass: cfg.cls,
-        barClass: cfg.bar,
-        historialPagos: [
-          ...updated.historialPagos,
-          {
-            fecha: fechaPago,
-            monto: parseFloat(
-              calcCuota(updated.montoTotal, updated.cuotas).toFixed(2),
-            ),
-            cuota: nuevasPagadas,
-          },
-        ],
-      };
-    });
-    setIsPagoOpen(false);
-  };
 
   const handleViewDetail = (item) => {
     setSelected(item);
@@ -286,7 +173,13 @@ export default function Creditos() {
     : null;
 
   return (
-    <div className="space-y-6">
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="space-y-6"
+      >
       {/* ── TOPBAR ── */}
       <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8 -mt-6 md:-mt-10 pt-4 pb-4">
         <div className="flex items-center gap-4 w-full justify-between">
@@ -322,15 +215,14 @@ export default function Creditos() {
       {/* ── PAGE HEADER ── */}
       <section className="pt-2 md:pt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1
-            className="text-3xl md:text-4xl font-black tracking-tight text-slate-900"
+          <h2
+            className="text-3xl font-black text-slate-900 tracking-tight"
             style={{ fontFamily: "Manrope, sans-serif" }}
           >
-            Control de Creditos
-          </h1>
-          <p className="mt-1 text-slate-500 text-lg max-w-2xl">
-            Administracion integral de financiamientos para colaboradores del
-            comisariato.
+            Creditos
+          </h2>
+          <p className="text-slate-500 font-medium">
+            Gestion de creditos automaticos y seguimiento de pagos al personal.
           </p>
         </div>
         <button
@@ -368,187 +260,20 @@ export default function Creditos() {
             Acumulado historico
           </p>
         </article>
-        <article className="rounded-2xl border border-red-800/20 border-l-4 border-l-red-700 bg-white p-5 shadow-sm">
+        <article className="rounded-2xl border border-sky-700/20 border-l-4 border-l-sky-700 bg-white p-5 shadow-sm">
           <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-            En Mora
+            Regla de Credito
           </p>
-          <h3 className="mt-1 text-3xl font-black text-slate-900">{enMora}</h3>
-          <p className="mt-1 text-xs font-bold text-red-600">
-            Creditos sin pago al dia
+          <h3 className="mt-1 text-3xl font-black text-slate-900">15%</h3>
+          <p className="mt-1 text-xs font-bold text-sky-700">
+            Del salario mensual por empleado
           </p>
         </article>
       </div>
 
       {/* ── MAIN GRID ── */}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* FORM NUEVO CRÉDITO */}
-        <article className="xl:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-800">
-              <span className="material-symbols-outlined">add_card</span>
-            </div>
-            <h2
-              className="text-3xl font-black text-slate-900"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Nuevo Credito
-            </h2>
-          </div>
-
-          <div className="space-y-5">
-            {/* Empleado */}
-            <div>
-              <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                Empleado
-              </label>
-              <div className="relative">
-                <select
-                  value={form.empleadoId}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, empleadoId: e.target.value }))
-                  }
-                  className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none focus:border-green-300 focus:ring-2 focus:ring-green-100"
-                >
-                  <option value="">Seleccione un colaborador...</option>
-                  {EMPLEADOS.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nombre} — {e.area}
-                    </option>
-                  ))}
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
-                  keyboard_arrow_down
-                </span>
-              </div>
-            </div>
-
-            {/* Monto + Cuotas */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                  Monto (L)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.monto}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, monto: e.target.value }))
-                  }
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none focus:border-green-300 focus:ring-2 focus:ring-green-100"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                  Cuotas (max 24)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="24"
-                  value={form.cuotas}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, cuotas: e.target.value }))
-                  }
-                  className="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none focus:border-green-300 focus:ring-2 focus:ring-green-100"
-                />
-              </div>
-            </div>
-
-            {/* Plazo */}
-            <div>
-              <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                Plazo de Pago
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {["Quincenal", "Mensual"].map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, plazo: p }))}
-                    className={`rounded-lg border py-3 text-sm font-bold transition-colors ${
-                      form.plazo === p
-                        ? "border-green-700 bg-green-800 text-white"
-                        : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Fecha inicio */}
-            <div>
-              <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                Fecha de Inicio
-              </label>
-              <input
-                type="date"
-                value={form.fechaInicio}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, fechaInicio: e.target.value }))
-                }
-                className="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none focus:border-green-300 focus:ring-2 focus:ring-green-100"
-              />
-            </div>
-
-            {/* Descripcion */}
-            <div>
-              <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                Motivo / Descripcion
-              </label>
-              <textarea
-                rows={2}
-                value={form.descripcion}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, descripcion: e.target.value }))
-                }
-                placeholder="Ej: Compra de electrodomesticos..."
-                className="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none focus:border-green-300 focus:ring-2 focus:ring-green-100 resize-none"
-              />
-            </div>
-
-            {/* Calculo automatico */}
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="text-sm text-slate-600">Tasa de Interes</span>
-                <span className="text-sm font-bold text-green-800">
-                  0% (institucional)
-                </span>
-              </div>
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-sm text-slate-600">Cuota estimada</span>
-                <span className="text-3xl font-black text-green-800">
-                  {montoNum > 0 ? fmt(pagoEstim) : "L 0.00"}
-                </span>
-              </div>
-              {montoNum > 0 && (
-                <p className="mt-2 text-xs italic text-slate-500">
-                  {cuotasNum} cuotas de {fmt(pagoEstim)} — Total:{" "}
-                  {fmt(montoNum)}
-                </p>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={handleAprobar}
-              className="w-full rounded-xl bg-green-800 py-3.5 text-sm font-bold text-white hover:bg-green-900 shadow-md shadow-green-900/25 transition-colors"
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px]">
-                  check_circle
-                </span>
-                Aprobar y Crear Credito
-              </span>
-            </button>
-          </div>
-        </article>
-
-        {/* TABLA CRÉDITOS */}
-        <div className="xl:col-span-7 space-y-6">
+      <section className="space-y-6">
+        <div className="space-y-6">
           <article className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 md:px-6 gap-3 flex-wrap">
               <h3
@@ -558,7 +283,7 @@ export default function Creditos() {
                 Historial de Creditos
               </h3>
               <div className="flex gap-2 flex-wrap">
-                {["Todos", "Activo", "Mora", "Pagado"].map((e) => (
+                {["Todos", "Activo", "Pagado"].map((e) => (
                   <button
                     key={e}
                     onClick={() => setFiltroEstado(e)}
@@ -686,6 +411,7 @@ export default function Creditos() {
           </article>
         </div>
       </section>
+      </motion.div>
 
       {/* ── MODAL DETALLE ── */}
       {isDetailOpen && liveCredit && (
@@ -834,23 +560,10 @@ export default function Creditos() {
 
               {/* Botones */}
               <div className="flex gap-3">
-                {liveCredit.pagadas < liveCredit.cuotas && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelected(liveCredit);
-                      setIsDetailOpen(false);
-                      setIsPagoOpen(true);
-                    }}
-                    className="flex-1 bg-green-800 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-green-900 transition-all active:scale-95 uppercase tracking-widest text-sm"
-                  >
-                    Registrar Pago
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => setIsDetailOpen(false)}
-                  className="flex-1 bg-slate-100 text-slate-700 py-3.5 rounded-2xl font-black hover:bg-slate-200 transition-all active:scale-95 uppercase tracking-widest text-sm"
+                  className="w-full bg-slate-100 text-slate-700 py-3.5 px-8 rounded-2xl font-black hover:bg-slate-200 transition-all active:scale-95 uppercase tracking-widest text-sm"
                 >
                   Cerrar
                 </button>
@@ -859,92 +572,6 @@ export default function Creditos() {
           </div>
         </div>
       )}
-
-      {/* ── MODAL REGISTRAR PAGO ── */}
-      {isPagoOpen && selected && (
-        <div className="fixed inset-0 bg-green-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="p-8 bg-green-900 text-white flex justify-between items-center">
-              <div>
-                <h3 className="text-2xl font-black">Registrar Pago</h3>
-                <p className="text-green-200 text-[10px] font-bold uppercase tracking-widest">
-                  Deduccion de planilla
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPagoOpen(false)}
-                className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div className="p-8 space-y-5">
-              <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-1">
-                <p className="text-xs text-slate-500 font-bold uppercase">
-                  Empleado
-                </p>
-                <p className="font-black text-slate-900">{selected.employee}</p>
-                <p className="text-xs text-slate-500">
-                  {selected.code} — {selected.role}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-green-50 border border-green-200 p-4 flex justify-between items-center">
-                <span className="text-sm font-bold text-slate-600">
-                  Cuota {selected.pagadas + 1}/{selected.cuotas}
-                </span>
-                <span className="text-2xl font-black text-green-800">
-                  {fmt(calcCuota(selected.montoTotal, selected.cuotas))}
-                </span>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-[11px] font-black uppercase tracking-wider text-slate-500">
-                  Fecha de Pago
-                </label>
-                <input
-                  type="date"
-                  value={fechaPago}
-                  onChange={(e) => setFechaPago(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-100 px-4 py-3 text-slate-700 outline-none focus:border-green-300 focus:ring-2 focus:ring-green-100"
-                />
-              </div>
-
-              <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 text-xs text-slate-500">
-                Saldo restante tras este pago:{" "}
-                <span className="font-black text-slate-800">
-                  {fmt(
-                    calcSaldo(
-                      selected.montoTotal,
-                      selected.pagadas + 1,
-                      selected.cuotas,
-                    ),
-                  )}
-                </span>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleRegistrarPago}
-                  className="flex-1 bg-green-800 text-white py-3.5 rounded-2xl font-black shadow-lg hover:bg-green-900 transition-all active:scale-95 uppercase tracking-widest text-sm"
-                >
-                  Confirmar Pago
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsPagoOpen(false)}
-                  className="flex-1 bg-slate-100 text-slate-700 py-3.5 rounded-2xl font-black hover:bg-slate-200 transition-all active:scale-95 uppercase tracking-widest text-sm"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }
