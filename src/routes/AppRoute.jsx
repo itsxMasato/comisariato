@@ -17,7 +17,6 @@ import Empleados from "../pages/Empleados";
 // Créditos
 import Creditos from "../pages/Creditos";
 import NuevoCredito from "../pages/NuevoCredito";
-import DetalleCredito from "../pages/DetalleCredito";
 
 // Cuotas
 import Cuotas from "../pages/Cuotas";
@@ -58,7 +57,6 @@ export default function AppRouter() {
           {/* Créditos */}
           <Route path="creditos" element={<Creditos />} />
           <Route path="creditos/nuevo" element={<NuevoCredito />} />
-          <Route path="creditos/:id" element={<DetalleCredito />} />
 
           {/* Cuotas / Pagos */}
           <Route path="cuotas" element={<Cuotas />} />
