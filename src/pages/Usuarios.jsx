@@ -1,47 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  setDoc,
+  updateDoc,
+  Timestamp,
+} from "firebase/firestore";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { db, auth, secondaryAuth } from "../firebase/firebase";
+import { useAuth } from "../auth/AuthProvider";
 
 // --- AVATAR COMPONENT ---
-function Avatar({ name, img, size = "md" }) {
-  const sizes = {
-    sm: "w-8 h-8 text-xs",
-    md: "w-10 h-10 text-sm",
-    lg: "w-14 h-14 text-lg",
-  };
-  const colors = [
-    "bg-emerald-600",
-    "bg-teal-600",
-    "bg-cyan-600",
-    "bg-green-700",
-    "bg-lime-600",
-    "bg-sky-600",
-  ];
-  const color = colors[name.charCodeAt(0) % colors.length];
-  const initials = name
-    .split(" ")
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-  return img ? (
-    <img
-      className={`${sizes[size]} rounded-full object-cover shadow-sm flex-shrink-0`}
-      src={img}
-      alt={name}
-      onError={(e) => {
-        e.target.style.display = "none";
-        e.target.nextSibling.style.display = "flex";
-      }}
-    />
-  ) : (
-    <div
-      className={`${sizes[size]} ${color} rounded-full flex items-center justify-center font-black text-white flex-shrink-0`}
-    >
-      {initials}
-    </div>
-  );
-}
-
 function AvatarWithFallback({ name, img, size = "md" }) {
   const sizes = {
     sm: "w-8 h-8 text-xs",
@@ -111,62 +82,37 @@ const INITIAL_ROLES = [
       "Logs",
       "Configuración",
     ],
+    estado: "Activo",
   },
   {
     id: 2,
     name: "ADMIN COMISARIATO",
     permissions: ["Inventario", "Ventas", "Reportes"],
+    estado: "Activo",
   },
   {
     id: 3,
     name: "EDITOR CRÉDITOS",
     permissions: ["Ver Usuarios", "Gestionar Créditos"],
+    estado: "Activo",
   },
-  { id: 4, name: "EDITOR INVENTARIO", permissions: ["Inventario", "Stock"] },
-  { id: 5, name: "EDITOR EMPLEADOS", permissions: ["Usuarios", "Horarios"] },
+  {
+    id: 4,
+    name: "EDITOR INVENTARIO",
+    permissions: ["Inventario", "Stock"],
+    estado: "Activo",
+  },
+  {
+    id: 5,
+    name: "EDITOR EMPLEADOS",
+    permissions: ["Usuarios", "Horarios"],
+    estado: "Activo",
+  },
   {
     id: 6,
     name: "SUPERVISOR RESERVAS",
     permissions: ["Reservas", "Calendario"],
-  },
-];
-
-const INITIAL_USERS = [
-  {
-    id: 1,
-    name: "Elena Rodriguez",
-    email: "erodriguez@ingenio.com",
-    role: "SUPER ADMIN",
-    status: "Activo",
-    lastAccess: "Hoy, 09:42 AM",
-    img: "",
-  },
-  {
-    id: 2,
-    name: "Marco Antonio Solis",
-    email: "msolis@ingenio.com",
-    role: "SUPERVISOR RESERVAS",
-    status: "Activo",
-    lastAccess: "Ayer, 04:15 PM",
-    img: "",
-  },
-  {
-    id: 3,
-    name: "Roberto Valencia",
-    email: "rvalencia@ingenio.com",
-    role: "EDITOR INVENTARIO",
-    status: "Deshabilitado",
-    lastAccess: "Hace 1 mes",
-    img: "",
-  },
-  {
-    id: 4,
-    name: "Carolina Mendieta",
-    email: "cmendieta@ingenio.com",
-    role: "EDITOR EMPLEADOS",
-    status: "Activo",
-    lastAccess: "Hoy, 11:22 AM",
-    img: "",
+    estado: "Activo",
   },
 ];
 
@@ -249,38 +195,85 @@ function Toast({ message, show }) {
 
 // --- MAIN ---
 export default function Usuarios() {
+  const { userName, role: authRole } = useAuth();
   const [activeTab, setActiveTab] = useState("usuarios");
-  const [users, setUsers] = useState(INITIAL_USERS);
-  const [roles, setRoles] = useState(INITIAL_ROLES);
+
+  const [usersData, setUsersData] = useState([]);
+  const [rolesData, setRolesData] = useState([]);
+  const [empleadosData, setEmpleadosData] = useState([]);
+
+  useEffect(() => {
+    const unsubU = onSnapshot(collection(db, "usuarios"), (s) =>
+      setUsersData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubR = onSnapshot(collection(db, "roles"), (s) =>
+      setRolesData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubE = onSnapshot(collection(db, "empleados"), (s) =>
+      setEmpleadosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    return () => {
+      unsubU();
+      unsubR();
+      unsubE();
+    };
+  }, []);
+
+  const users = usersData.map((u) => ({
+    ...u,
+    id: u.usuarioId || u.id,
+    name: u.nombre || "Sin Nombre",
+    email: u.correo || "",
+    role: u.rol || "N/A",
+    status: u.estado || "Deshabilitado",
+    lastAccess:
+      u.fechaActualizacion && typeof u.fechaActualizacion.toDate === "function"
+        ? u.fechaActualizacion.toDate().toLocaleDateString()
+        : u.fechaActualizacion instanceof Date
+        ? u.fechaActualizacion.toLocaleDateString()
+        : "",
+    img: "",
+  }));
+
+  // ✅ roles con campo `estado` mapeado
+  const roles =
+    rolesData.length > 0
+      ? rolesData.map((r) => ({
+          id: r.id,
+          name: r.nombre || "",
+          permissions: r.permisos || [],
+          estado: r.estado || "Activo",
+        }))
+      : INITIAL_ROLES;
+
+  // Roles activos — únicamente para selects de asignación
+  const activeRoles = roles.filter((r) => r.estado === "Activo");
+
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("Todos los Roles");
   const [statusFilter, setStatusFilter] = useState("Cualquier Estado");
 
-  // Panels
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [editRole, setEditRole] = useState(null);
   const [newRolePanel, setNewRolePanel] = useState(false);
-
-  // Confirm
   const [confirmData, setConfirmData] = useState(null);
-
-  // Toast
   const [toast, setToast] = useState("");
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2500);
   };
 
-  // New user form
   const [newUser, setNewUser] = useState({
+    empleadoId: "",
     name: "",
     email: "",
-    role: INITIAL_ROLES[0].name,
+    role: "",
   });
-  // New role form
   const [newRole, setNewRole] = useState({ name: "", permissions: [] });
 
+  // ── Usuarios ──────────────────────────────────────────────
   const toggleUserStatus = (id) => {
     const user = users.find((u) => u.id === id);
     const next = user.status === "Activo" ? "Deshabilitado" : "Activo";
@@ -297,8 +290,13 @@ export default function Usuarios() {
         next === "Deshabilitado"
           ? "bg-rose-600 hover:bg-rose-700"
           : "bg-green-700 hover:bg-green-800",
-      onConfirm: () => {
-        setUsers(users.map((u) => (u.id === id ? { ...u, status: next } : u)));
+      onConfirm: async () => {
+        await updateDoc(doc(db, "usuarios", id), {
+          estado: next,
+          fechaActualizacion: Timestamp.now(),
+          tipoModificacion: "Cambio Estado",
+          usuarioModifico: auth.currentUser?.email || "Admin",
+        });
         setConfirmData(null);
         showToast(
           next === "Deshabilitado"
@@ -309,43 +307,109 @@ export default function Usuarios() {
     });
   };
 
-  const saveEditUser = (updated) => {
-    setUsers(users.map((u) => (u.id === updated.id ? updated : u)));
+  const saveEditUser = async (updated) => {
+    await updateDoc(doc(db, "usuarios", updated.id), {
+      nombre: updated.name,
+      correo: updated.email,
+      rol: updated.role,
+      estado: updated.status,
+      fechaActualizacion: Timestamp.now(),
+      tipoModificacion: "Actualización",
+      usuarioModifico: auth.currentUser?.email || "Admin",
+    });
     setEditUser(null);
     showToast("Usuario actualizado correctamente");
   };
 
-  const addUser = () => {
+  const addUser = async () => {
     if (!newUser.name || !newUser.email) return;
-    const u = {
-      id: Date.now(),
-      ...newUser,
-      status: "Activo",
-      lastAccess: "Ahora",
-      img: "",
-    };
-    setUsers([...users, u]);
-    setIsPanelOpen(false);
-    setNewUser({ name: "", email: "", role: roles[0].name });
-    showToast("Usuario vinculado exitosamente");
+    try {
+      const generatedPass = `${newUser.email.split("@")[0]}2026`;
+      const cred = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        newUser.email,
+        generatedPass,
+      );
+      await setDoc(doc(db, "usuarios", cred.user.uid), {
+        usuarioId: cred.user.uid,
+        uid: cred.user.uid,
+        nombre: newUser.name,
+        correo: newUser.email,
+        rol: newUser.role || activeRoles[0]?.name,
+        estado: "Activo",
+        tipoModificacion: "Creación",
+        usuarioModifico: auth.currentUser?.email || "Admin",
+        fechaRegistro: Timestamp.now(),
+        fechaActualizacion: Timestamp.now(),
+      });
+      setIsPanelOpen(false);
+      setNewUser({
+        empleadoId: "",
+        name: "",
+        email: "",
+        role: activeRoles[0]?.name || "",
+      });
+      showToast("Usuario vinculado exitosamente");
+    } catch (error) {
+      showToast(`Error: ${error.message}`);
+    }
   };
 
-  const saveEditRole = (updated) => {
-    setRoles(roles.map((r) => (r.id === updated.id ? updated : r)));
+  // ── Roles ─────────────────────────────────────────────────
+  const saveEditRole = async (updated) => {
+    await updateDoc(doc(db, "roles", updated.id), {
+      nombre: updated.name,
+      permisos: updated.permissions,
+      estado: updated.estado, // ✅ guarda estado
+      fechaModificacion: Timestamp.now(),
+      usuarioModifico: auth.currentUser?.email || "Admin",
+    });
     setEditRole(null);
     showToast("Rol actualizado correctamente");
   };
 
-  const addRole = () => {
-    if (!newRole.name) return;
-    setRoles([
-      ...roles,
-      {
-        id: Date.now(),
-        name: newRole.name.toUpperCase(),
-        permissions: newRole.permissions,
+  // ✅ Toggle estado del rol desde la tarjeta
+  const toggleRoleStatus = (role) => {
+    const next = role.estado === "Activo" ? "Deshabilitado" : "Activo";
+    setConfirmData({
+      title: next === "Deshabilitado" ? "Deshabilitar rol" : "Habilitar rol",
+      message:
+        next === "Deshabilitado"
+          ? `¿Deshabilitar "${role.name}"? No podrá asignarse a nuevos usuarios, pero los actuales no se verán afectados.`
+          : `¿Volver a habilitar el rol "${role.name}"?`,
+      confirmLabel:
+        next === "Deshabilitado" ? "Sí, deshabilitar" : "Sí, habilitar",
+      confirmColor:
+        next === "Deshabilitado"
+          ? "bg-rose-600 hover:bg-rose-700"
+          : "bg-green-700 hover:bg-green-800",
+      onConfirm: async () => {
+        await updateDoc(doc(db, "roles", role.id), {
+          estado: next,
+          fechaModificacion: Timestamp.now(),
+          usuarioModifico: auth.currentUser?.email || "Admin",
+        });
+        setConfirmData(null);
+        showToast(
+          next === "Deshabilitado"
+            ? `Rol "${role.name}" deshabilitado`
+            : `Rol "${role.name}" habilitado`,
+        );
       },
-    ]);
+    });
+  };
+
+  const addRole = async () => {
+    if (!newRole.name) return;
+    const docRef = doc(collection(db, "roles"));
+    await setDoc(docRef, {
+      rolId: docRef.id,
+      nombre: newRole.name.toUpperCase(),
+      permisos: newRole.permissions,
+      estado: "Activo", // ✅ siempre activo al crear
+      fechaRegistro: Timestamp.now(),
+      usuarioModifico: auth.currentUser?.email || "Admin",
+    });
     setNewRolePanel(false);
     setNewRole({ name: "", permissions: [] });
     showToast("Rol creado exitosamente");
@@ -386,15 +450,17 @@ export default function Usuarios() {
           </span>
           <div className="h-8 w-[1px] bg-slate-200 mx-1" />
           <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-100 p-1 pr-3 rounded-full transition-all">
-            <AvatarWithFallback name="Miguel Flores" img="" size="sm" />
+            <AvatarWithFallback name={userName || "Usuario"} img="" size="sm" />
             <div className="flex flex-col items-start leading-none">
               <span
                 className="text-xs font-bold text-green-900 uppercase"
                 style={{ fontFamily: "Manrope,sans-serif" }}
               >
-                MIGUEL FLORES
+                {userName || "USUARIO"}
               </span>
-              <span className="text-[10px] text-slate-500">Super User</span>
+              <span className="text-[10px] text-slate-500 capitalize">
+                {authRole || "Invitado"}
+              </span>
             </div>
           </div>
         </div>
@@ -448,7 +514,7 @@ export default function Usuarios() {
               />
               <StatCard
                 title="Roles Activos"
-                value={roles.length}
+                value={activeRoles.length}
                 icon="shield_person"
                 border="border-amber-500"
                 color="text-amber-600"
@@ -626,7 +692,7 @@ export default function Usuarios() {
             </div>
           </>
         ) : (
-          /* ROLES VIEW */
+          /* ── ROLES VIEW ── */
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4">
               <div>
@@ -650,65 +716,97 @@ export default function Usuarios() {
                 <span>Nuevo Rol</span>
               </button>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {roles.map((role) => (
-                <motion.div
-                  whileHover={{ y: -4 }}
-                  key={role.id}
-                  className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-between group"
-                >
-                  <div>
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="bg-green-100 p-3 rounded-2xl">
-                        <span className="material-symbols-outlined text-green-800">
-                          security
-                        </span>
-                      </div>
-                      <span className="text-[10px] font-black bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase tracking-tighter">
-                        {users.filter((u) => u.role === role.name).length}{" "}
-                        usuarios
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-black text-green-900 uppercase mb-4 leading-tight">
-                      {role.name}
-                    </h3>
-                    <div className="space-y-3">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Permisos de Acceso
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {role.permissions.map((p, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-1 rounded-md bg-slate-50 text-slate-600 text-[10px] font-bold border border-slate-100"
-                          >
-                            {p}
-                          </span>
-                        ))}
-                        {role.permissions.length === 0 && (
-                          <span className="text-[10px] text-slate-400 italic">
-                            Sin permisos asignados
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() =>
-                      setEditRole({
-                        ...role,
-                        permissions: [...role.permissions],
-                      })
-                    }
-                    className="w-full mt-8 py-3 rounded-xl border-2 border-slate-100 text-slate-500 font-bold text-xs hover:bg-green-800 hover:text-white hover:border-green-800 transition-all flex items-center justify-center gap-2"
+              {roles.map((role) => {
+                const isDisabled = role.estado === "Deshabilitado";
+                return (
+                  <motion.div
+                    whileHover={{ y: -4 }}
+                    key={role.id}
+                    className={`bg-white p-8 rounded-3xl border shadow-sm flex flex-col justify-between group transition-all ${isDisabled ? "border-slate-200 opacity-55 grayscale" : "border-slate-200"}`}
                   >
-                    <span className="material-symbols-outlined text-sm">
-                      tune
-                    </span>
-                    Configurar Permisos
-                  </button>
-                </motion.div>
-              ))}
+                    <div>
+                      <div className="flex justify-between items-start mb-6">
+                        <div
+                          className={`p-3 rounded-2xl ${isDisabled ? "bg-slate-100" : "bg-green-100"}`}
+                        >
+                          <span
+                            className={`material-symbols-outlined ${isDisabled ? "text-slate-400" : "text-green-800"}`}
+                          >
+                            security
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                          {isDisabled && (
+                            <span className="text-[10px] font-black bg-rose-50 text-rose-500 border border-rose-100 px-2 py-1 rounded uppercase tracking-tighter">
+                              Deshabilitado
+                            </span>
+                          )}
+                          <span className="text-[10px] font-black bg-slate-100 px-2 py-1 rounded text-slate-500 uppercase tracking-tighter">
+                            {users.filter((u) => u.role === role.name).length}{" "}
+                            usuarios
+                          </span>
+                        </div>
+                      </div>
+                      <h3 className="text-xl font-black text-green-900 uppercase mb-4 leading-tight">
+                        {role.name}
+                      </h3>
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                          Permisos de Acceso
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {role.permissions.map((p, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-1 rounded-md bg-slate-50 text-slate-600 text-[10px] font-bold border border-slate-100"
+                            >
+                              {p}
+                            </span>
+                          ))}
+                          {role.permissions.length === 0 && (
+                            <span className="text-[10px] text-slate-400 italic">
+                              Sin permisos asignados
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ✅ Botones de acción */}
+                    <div className="mt-8 flex flex-col gap-2">
+                      <button
+                        onClick={() =>
+                          setEditRole({
+                            ...role,
+                            permissions: [...role.permissions],
+                          })
+                        }
+                        className="w-full py-3 rounded-xl border-2 border-slate-100 text-slate-500 font-bold text-xs hover:bg-green-800 hover:text-white hover:border-green-800 transition-all flex items-center justify-center gap-2"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          tune
+                        </span>
+                        Configurar Permisos
+                      </button>
+                      <button
+                        onClick={() => toggleRoleStatus(role)}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${
+                          isDisabled
+                            ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
+                            : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {isDisabled ? "lock_open" : "lock"}
+                        </span>
+                        {isDisabled ? "Habilitar Rol" : "Deshabilitar Rol"}
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -721,44 +819,91 @@ export default function Usuarios() {
         title="Vincular Empleado"
       >
         <div className="space-y-6 flex-1 overflow-y-auto">
-          <Field label="Nombre Completo">
-            <input
-              className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none"
-              placeholder="Ej: Elena Rodriguez"
-              value={newUser.name}
-              onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-            />
-          </Field>
-          <Field label="Correo Electrónico">
-            <input
-              className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none"
-              placeholder="correo@ingenio.com"
-              value={newUser.email}
-              onChange={(e) =>
-                setNewUser({ ...newUser, email: e.target.value })
-              }
-            />
-          </Field>
-          <Field label="Asignar Rol">
+          <Field label="Seleccione el Empleado">
             <select
               className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none cursor-pointer"
-              value={newUser.role}
-              onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+              value={newUser.empleadoId}
+              onChange={(e) => {
+                const emp = empleadosData.find(
+                  (emp) => emp.id === e.target.value,
+                );
+                if (emp) {
+                  setNewUser({
+                    ...newUser,
+                    empleadoId: emp.id,
+                    name: `${emp.nombres || ""} ${emp.apellidos || ""}`.trim(),
+                    email: emp.correo || "",
+                  });
+                } else {
+                  setNewUser({
+                    ...newUser,
+                    empleadoId: "",
+                    name: "",
+                    email: "",
+                  });
+                }
+              }}
             >
-              {roles.map((r) => (
-                <option key={r.id}>{r.name}</option>
-              ))}
+              <option value="">-- Seleccionar --</option>
+              {empleadosData
+                .filter((e) => e.estado === "Activo" || e.estado === "active")
+                .map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.nombres} {emp.apellidos} - {emp.departamento}
+                  </option>
+                ))}
             </select>
           </Field>
-          <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex gap-3">
-            <span className="material-symbols-outlined text-orange-600">
-              info
-            </span>
-            <p className="text-[11px] text-orange-800 leading-relaxed">
-              Se enviará una invitación por correo para configurar la
-              contraseña.
-            </p>
-          </div>
+          {newUser.empleadoId && (
+            <>
+              <Field label="Nombre Completo">
+                <input
+                  className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none cursor-not-allowed"
+                  value={newUser.name}
+                  readOnly
+                />
+              </Field>
+              <Field label="Correo Electrónico">
+                <input
+                  className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none"
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) =>
+                    setNewUser({ ...newUser, email: e.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Asignar Rol">
+                {/* ✅ Solo roles activos */}
+                <select
+                  className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none cursor-pointer"
+                  value={newUser.role}
+                  onChange={(e) =>
+                    setNewUser({ ...newUser, role: e.target.value })
+                  }
+                >
+                  {activeRoles.map((r) => (
+                    <option key={r.id} value={r.name}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 flex gap-3">
+                <span className="material-symbols-outlined text-orange-600">
+                  info
+                </span>
+                <p className="text-[11px] text-orange-800 leading-relaxed">
+                  Se creará automáticamente la cuenta con la contraseña
+                  predeterminada:{" "}
+                  <strong>
+                    {newUser.email ? newUser.email.split("@")[0] : "admin"}2026
+                  </strong>
+                  . (Pueden solicitar cambio de contraseña en el Login).
+                </p>
+              </div>
+            </>
+          )}
         </div>
         <div className="pt-6 border-t space-y-3">
           <button
@@ -785,7 +930,6 @@ export default function Usuarios() {
         {editUser && (
           <>
             <div className="space-y-6 flex-1 overflow-y-auto">
-              {/* Preview */}
               <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
                 <AvatarWithFallback
                   name={editUser.name || "U"}
@@ -826,6 +970,7 @@ export default function Usuarios() {
                 />
               </Field>
               <Field label="Rol Asignado">
+                {/* ✅ Solo roles activos */}
                 <select
                   className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none cursor-pointer"
                   value={editUser.role}
@@ -833,7 +978,7 @@ export default function Usuarios() {
                     setEditUser({ ...editUser, role: e.target.value })
                   }
                 >
-                  {roles.map((r) => (
+                  {activeRoles.map((r) => (
                     <option key={r.id}>{r.name}</option>
                   ))}
                 </select>
@@ -902,6 +1047,26 @@ export default function Usuarios() {
                   }
                 />
               </Field>
+              {/* ✅ Estado del rol editable desde el panel */}
+              <Field label="Estado del Rol">
+                <div className="flex gap-3">
+                  {["Activo", "Deshabilitado"].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setEditRole({ ...editRole, estado: s })}
+                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${
+                        (editRole.estado || "Activo") === s
+                          ? s === "Activo"
+                            ? "bg-green-800 text-white"
+                            : "bg-rose-600 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </Field>
               <div className="space-y-3">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   Permisos de Acceso
@@ -935,7 +1100,7 @@ export default function Usuarios() {
                 onClick={() => saveEditRole(editRole)}
                 className="w-full bg-green-800 text-white py-4 rounded-xl font-bold hover:bg-green-900 shadow-lg transition-all active:scale-95"
               >
-                Guardar Permisos
+                Guardar Cambios
               </button>
               <button
                 onClick={() => setEditRole(null)}
@@ -1009,7 +1174,6 @@ export default function Usuarios() {
         </div>
       </SidePanel>
 
-      {/* Confirm Modal */}
       {confirmData && (
         <ConfirmModal
           open={!!confirmData}
@@ -1021,8 +1185,6 @@ export default function Usuarios() {
           onCancel={() => setConfirmData(null)}
         />
       )}
-
-      {/* Toast */}
       <Toast message={toast} show={!!toast} />
     </div>
   );

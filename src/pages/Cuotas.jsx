@@ -1,70 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-
-// ── KPIs ───────────────────────────────────────────────────
-const KPIS = [
-  {
-    label: "Total Recuperado",
-    value: "$39,429.85",
-    icon: "savings",
-    valueColor: "text-green-800",
-    hoverBg: "hover:bg-green-800 hover:text-white",
-  },
-  {
-    label: "Pendiente de Cobro",
-    value: "$0.00",
-    icon: "pending_actions",
-    valueColor: "text-slate-600",
-    hoverBg: "hover:bg-slate-600 hover:text-white",
-  },
-  {
-    label: "Deducción de Nómina (15%)",
-    value: "$12,940.00",
-    icon: "account_balance_wallet",
-    valueColor: "text-green-800",
-    hoverBg: "hover:bg-green-800 hover:text-white",
-  },
-];
-
-// ── Deductions data ────────────────────────────────────────
-const INITIAL_ROWS = [
-  {
-    id: 1,
-    name: "Mateo Rivera",
-    dept: "Logística e Inventario",
-    salary: "$667.00",
-    credit: "$1,200.00",
-    quota: "4 / 12",
-    amount: "$100.00",
-    date: "Oct 28, 2023",
-    status: "applied",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCw5P-vS3_bYdYjySlgCJu0WDo39jpKC7YzBX129QH53Dw7TB4FVKV6QmhAgyWqzDodj8TAmo4PDDE4mnbfNe5EBCKsbIJ3-KuyaMGoOQbQbBkG1J8pzSAETLuNwBYYvpctuMxwJFxhvvA3hboHcXdA7Pwed3K-oZhF884gYBQ5IKNFnAYrajm5Ruk-vrTHXlVBaywLFqngMSM5XoKsU-zFBfzaC2R4DUg97rv81tNyU855QbPDpb7wvW2paEIN_Ax4EGAnxymqRIU",
-  },
-  {
-    id: 2,
-    name: "Elena Castillo",
-    dept: "Control de Calidad",
-    salary: "$555.53",
-    credit: "$500.00",
-    quota: "2 / 6",
-    amount: "$83.33",
-    date: "Oct 24, 2023",
-    status: "applied",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCBeIbQsa5cwryLu7Qxjq2LUP1NX2-vd4f4QN6vlKIvoNfJ8FVC8qflxGuboEuidBBLCkZTESVDaIzYE6zbA2fmXOlRgZ4ejeEjYEK_T3Rrc_SQnNQ5KEI5-T3ng6I3O05j3H3HIuG50MGaRkj64Gr2Q7DR4eV6W3zxCRsxiwvtHUz-NLSeWIOSQcUw-0UhPk_QDN9c6DTp2_D0L5Dihx0qKJ9DZeha4LeNADInvOey3YspxJMTXl4-be0puytgaPZZ0GFieaSg7PY",
-  },
-  {
-    id: 3,
-    name: "Javier Ortiz",
-    dept: "Operador Maquinaria",
-    salary: "$680.50",
-    credit: "$2,450.00",
-    quota: "10 / 24",
-    amount: "$102.08",
-    date: "Nov 02, 2023",
-    status: "applied",
-    img: "https://lh3.googleusercontent.com/aida-public/AB6AXuANALgXXylFxw0l6rmKEnLykbxjnQKP4wiNIywn5UL2QCf-2jiOmEy0pdHkr9VUvGFAn_EyCfZiF9JTbhj3INRz4VZqAYIelZ0bf24SPxvKtSqDbQdwa39AKOjpzaKVeqTggzRP1Wd9zh_iBJvGZKJCBbg8LY5aVx1ZqB7xX0vlXjtRs0jmO2bwJkYH1CwOZBuE23Rf45zvGCLpRcvWmEdNFgjm7J0jV7wmaLQcW0l5v7pasr5fyIwoPG3ac6X85LrbxCGsgIVv2qk",
-  },
-];
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase/firebase";
+import { useAuth } from "../auth/AuthProvider";
 
 function StatusBadge({ status }) {
   if (status === "applied")
@@ -83,13 +21,58 @@ function StatusBadge({ status }) {
 }
 
 export default function Cuotas() {
+  const { userName, role: authRole } = useAuth();
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("Todos los Departamentos");
 
-  const filtered = INITIAL_ROWS.filter((r) => {
+  const [cuotasData, setCuotasData] = useState([]);
+  const [empData, setEmpData] = useState([]);
+  const [credData, setCredData] = useState([]);
+
+  useEffect(() => {
+    const unsubQ = onSnapshot(collection(db, "cuotas"), s => setCuotasData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubE = onSnapshot(collection(db, "empleados"), s => setEmpData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubC = onSnapshot(collection(db, "creditos"), s => setCredData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { unsubQ(); unsubE(); unsubC(); };
+  }, []);
+
+  const stats = useMemo(() => {
+    let totalRecuperado = 0;
+    cuotasData.forEach(c => totalRecuperado += (Number(c.monto) || 0));
+    let totalNomina = 0;
+    credData.filter(c => c.estado === "Activo").forEach(c => {
+       const emp = empData.find(e => e.empleadoId === c.empleadoId || e.id === c.empleadoId);
+       if(emp && emp.salario) totalNomina += (Number(emp.salario) * 0.15);
+    });
+    return { totalRecuperado, totalNomina };
+  }, [cuotasData, empData, credData]);
+
+  const liveKpis = [
+    { label: "Total Recuperado", value: `L ${stats.totalRecuperado.toLocaleString()}`, icon: "savings", valueColor: "text-green-800", hoverBg: "hover:bg-green-800 hover:text-white" },
+    { label: "Pendiente de Cobro", value: "L 0.00", icon: "pending_actions", valueColor: "text-slate-600", hoverBg: "hover:bg-slate-600 hover:text-white" },
+    { label: "Deducción de Nómina (15%)", value: `L ${stats.totalNomina.toLocaleString()}`, icon: "account_balance_wallet", valueColor: "text-green-800", hoverBg: "hover:bg-green-800 hover:text-white" }
+  ];
+
+  const rows = cuotasData.map(c => {
+    const emp = empData.find(e => e.empleadoId === c.empleadoId || e.id === c.empleadoId) || {};
+    const cred = credData.find(cr => cr.empleadoId === c.empleadoId && cr.estado === "Activo") || {};
+    return {
+      id: c.cuotaId || c.id,
+      name: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "Desconocido",
+      dept: emp.departamento || "N/A",
+      salary: `L ${Number(emp.salario || 0).toLocaleString()}`,
+      credit: cred.totalCredito ? `L ${Number(cred.totalCredito).toLocaleString()}` : "—",
+      quota: cred.plazoMeses ? `- / ${cred.plazoMeses}` : "—",
+      amount: `L ${Number(c.monto || 0).toLocaleString()}`,
+      date: c.fecha && typeof c.fecha.toDate === 'function' ? c.fecha.toDate().toLocaleDateString() : c.fecha || "",
+      status: Number(c.saldoPendiente || 0) > 0 ? "pending" : "applied",
+      img: "https://ui-avatars.com/api/?name=" + (emp.nombres || "U") 
+    };
+  });
+
+  const filtered = rows.filter((r) => {
     const matchSearch =
-      r.name.toLowerCase().includes(search.toLowerCase()) ||
-      r.dept.toLowerCase().includes(search.toLowerCase());
+      r.name.toLowerCase().includes(search.toLowerCase());
     const matchDept =
       deptFilter === "Todos los Departamentos" || r.dept === deptFilter;
     return matchSearch && matchDept;
@@ -100,8 +83,8 @@ export default function Cuotas() {
       {/* Top bar */}
       <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-slate-50/80 backdrop-blur-md border-b border-slate-200 mb-8 -mt-6 md:-mt-10 pt-4 pb-4">
         <div className="flex items-center gap-6 flex-1">
-          <h1 className="text-green-900 font-semibold text-base shrink-0 hidden sm:block" style={{ fontFamily: "Manrope, sans-serif" }}>
-            Portal de Comisariato
+          <h1 className="text-green-900 font-semibold text-base shrink-0 hidden sm:block uppercase" style={{ fontFamily: "Manrope, sans-serif" }}>
+            {userName || "Portal de Comisariato"}
           </h1>
           <div className="relative w-full max-w-xs mt-2 md:mt-0">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
@@ -163,7 +146,7 @@ export default function Cuotas() {
 
         {/* KPI grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {KPIS.map((kpi) => (
+          {liveKpis.map((kpi) => (
             <div
               key={kpi.label}
               className={`bg-white p-6 rounded-3xl border border-slate-100 shadow-sm group transition-all duration-300 cursor-default ${kpi.hoverBg}`}

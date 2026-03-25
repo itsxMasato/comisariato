@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { db } from "../firebase/firebase";
+import { useAuth } from "../auth/AuthProvider";
 
 const INITIAL_CREDITS = [
   {
@@ -84,11 +87,49 @@ const statusConfig = (pagadas, cuotas) => {
 };
 
 export default function Creditos() {
-  const [credits, setCredits] = useState(INITIAL_CREDITS);
+  const { userName, role: authRole } = useAuth();
+  const [creditsData, setCreditsData] = useState([]);
+  const [empData, setEmpData] = useState([]);
+  const [cuotasData, setCuotasData] = useState([]);
+
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
+
+  useEffect(() => {
+    const unsubC = onSnapshot(collection(db, "creditos"), (s) => setCreditsData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubE = onSnapshot(collection(db, "empleados"), (s) => setEmpData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubQ = onSnapshot(collection(db, "cuotas"), (s) => setCuotasData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { unsubC(); unsubE(); unsubQ(); };
+  }, []);
+
+  const credits = creditsData.length > 0 ? creditsData.map(c => {
+    const emp = empData.find(e => e.empleadoId === c.empleadoId || e.id === c.empleadoId) || {};
+    const pagos = cuotasData.filter(q => q.empleadoId === c.empleadoId);
+
+    return {
+      id: c.id,
+      creditoId: c.creditoId,
+      employee: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "No vinculado",
+      role: emp.departamento || "N/A",
+      code: c.creditoId || c.productoId || `#CR-${c.id.substring(0, 4)}`,
+      montoTotal: c.totalCredito || 0,
+      cuotas: c.plazoMeses || 1,
+      pagadas: pagos.length,
+      plazo: "Mensual",
+      fechaInicio: c.fechaInicio && typeof c.fechaInicio.toDate === 'function' ? c.fechaInicio.toDate().toLocaleDateString() : c.fechaInicio || "",
+      descripcion: `Crédito autorizado por ${c.empleadoAutoriza || "Admin"}`,
+      status: c.estado || "Activo",
+      statusClass: c.estado === "Activo" ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-600",
+      barClass: c.estado === "Activo" ? "bg-green-700" : "bg-slate-500",
+      historialPagos: pagos.map((p, i) => ({
+        fecha: p.fechaRegistro && typeof p.fechaRegistro.toDate === 'function' ? p.fechaRegistro.toDate().toLocaleDateString() : p.fechaRegistro || "",
+        monto: p.monto || 0,
+        cuota: i + 1
+      }))
+    };
+  }) : INITIAL_CREDITS;
 
   const creditosFiltrados = credits.filter((c) => {
     const matchSearch =
@@ -205,10 +246,12 @@ export default function Creditos() {
               </button>
               <div className="h-8 w-px bg-slate-200 hidden sm:block" />
               <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-gray-900">
-                  Comisariato Pro
+                <p className="text-xs font-bold text-gray-900 uppercase">
+                  {userName || "Comisariato Pro"}
                 </p>
-                <p className="text-[10px] text-slate-500">Region Central</p>
+                <p className="text-[10px] text-slate-500 capitalize">
+                  {authRole || "Region Central"}
+                </p>
               </div>
             </div>
           </div>

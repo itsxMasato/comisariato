@@ -1,5 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
+import { collection, onSnapshot, doc, setDoc, updateDoc, Timestamp } from "firebase/firestore";
+import { db, auth } from "../firebase/firebase";
+import { useAuth } from "../auth/AuthProvider";
 
 // ── Datos Iniciales ──────────────────────────────────────────
 const INITIAL_PRODUCTS = [
@@ -82,12 +85,42 @@ function StockCell({ product }) {
 }
 
 export default function Productos() {
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const { userName, role: authRole } = useAuth();
+  const [productsData, setProductsData] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todos los productos");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "productos"), (snapshot) => {
+      setProductsData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  const products = useMemo(() => {
+    return productsData.map(p => {
+      let dynStatus = "ok";
+      if (p.stock === 0) dynStatus = "out";
+      else if (p.stock < 20) dynStatus = "low";
+
+      return {
+        ...p,
+        id: p.id,
+        name: p.nombre || "Sin Nombre",
+        sku: p.productoId || p.id.substring(0, 6).toUpperCase(),
+        category: p.categoria || "Sin categoría",
+        price: `L ${p.precioContado || 0}`,
+        priceNum: p.precioContado || 0,
+        stock: p.stock || 0,
+        status: dynStatus,
+        active: p.estado !== "Inactivo",
+        img: p.imagenUrl || "https://via.placeholder.com/150?text=Sin+Foto"
+      };
+    });
+  }, [productsData]);
 
   // Lógica de Filtrado
   const filtered = useMemo(() => {
@@ -114,33 +147,40 @@ export default function Productos() {
     [products],
   );
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const stockVal = parseInt(formData.get("stock"));
+    const priceVal = parseFloat(formData.get("price"));
+
     const productData = {
-      name: formData.get("name"),
-      sku: formData.get("sku"),
-      category: formData.get("category"),
-      price: `L ${formData.get("price")} / ud`,
+      nombre: formData.get("name"),
+      productoId: formData.get("sku"),
+      categoria: formData.get("category"),
+      precioContado: priceVal,
+      precioCredito: priceVal * 1.15,
       stock: stockVal,
-      status: stockVal === 0 ? "out" : stockVal < 20 ? "low" : "ok",
-      active: true,
-      img:
-        formData.get("img_url") ||
-        "https://via.placeholder.com/150?text=Sin+Foto",
+      imagenUrl: formData.get("img_url") || "https://via.placeholder.com/150?text=Sin+Foto",
+      descripcion: "",
+      tipoModificacion: selectedProduct ? "Actualización" : "Creación",
+      usuarioModifico: auth.currentUser?.email || "Admin",
+      fechaModificacion: Timestamp.now()
     };
 
-    if (selectedProduct) {
-      setProducts(
-        products.map((p) =>
-          p.id === selectedProduct.id ? { ...p, ...productData } : p,
-        ),
-      );
-    } else {
-      setProducts([...products, { ...productData, id: Date.now() }]);
+    try {
+      if (selectedProduct) {
+        const docRef = doc(db, "productos", selectedProduct.id);
+        await updateDoc(docRef, productData);
+      } else {
+        productData.estado = "Activo";
+        productData.fechaRegistro = Timestamp.now();
+        const docRef = doc(collection(db, "productos"));
+        await setDoc(docRef, productData);
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error guardando producto:", error);
     }
-    setIsModalOpen(false);
   };
 
   return (
@@ -157,6 +197,24 @@ export default function Productos() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+        <div className="flex items-center gap-4 ml-6 shrink-0">
+          <button className="relative text-slate-600 hover:text-green-900 transition-all">
+            <span className="material-symbols-outlined">notifications</span>
+            <span className="absolute top-0 right-0 w-2 h-2 bg-red-600 rounded-full border-2 border-white" />
+          </button>
+          <button className="text-slate-600 hover:text-green-900 transition-all">
+            <span className="material-symbols-outlined">settings</span>
+          </button>
+          <div className="h-8 w-px bg-slate-200 hidden sm:block" />
+          <div className="text-right hidden sm:block">
+            <p className="text-xs font-bold text-gray-900 uppercase">
+              {userName || "Comisariato Pro"}
+            </p>
+            <p className="text-[10px] text-slate-500 capitalize">
+              {authRole || "Region Central"}
+            </p>
+          </div>
         </div>
       </header>
 
@@ -338,15 +396,15 @@ export default function Productos() {
                           </span>
                         </button>
                         <button
-                          onClick={() =>
-                            setProducts(
-                              products.map((x) =>
-                                x.id === p.id
-                                  ? { ...x, active: !x.active }
-                                  : x,
-                              ),
-                            )
-                          }
+                          onClick={async () => {
+                            const docRef = doc(db, "productos", p.id);
+                            await updateDoc(docRef, {
+                              estado: p.active ? "Inactivo" : "Activo",
+                              fechaModificacion: Timestamp.now(),
+                              tipoModificacion: "Cambio de Estado",
+                              usuarioModifico: auth.currentUser?.email || "Admin"
+                            });
+                          }}
                           className={`p-2 rounded-lg transition-colors ${
                             p.active
                               ? "text-slate-400 hover:text-amber-600 hover:bg-amber-50"
@@ -461,10 +519,7 @@ export default function Productos() {
                     type="number"
                     step="0.01"
                     required
-                    defaultValue={selectedProduct?.price?.replace(
-                      /[^0-9.]/g,
-                      "",
-                    ) || ""}
+                    defaultValue={selectedProduct?.priceNum || ""}
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-3 outline-none focus:border-green-700 text-sm font-bold"
                   />
                 </div>
