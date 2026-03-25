@@ -226,7 +226,7 @@ export default function Productos() {
         className="max-w-7xl mx-auto space-y-8"
       >
         {/* Título y Botón de Acción */}
-        <div className="flex justify-between items-end">
+        <div className="pt-2 md:pt-3 flex justify-between items-end">
           <div>
             <h2
               className="text-3xl font-black text-slate-900 tracking-tight"
