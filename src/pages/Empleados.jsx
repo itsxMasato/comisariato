@@ -1,46 +1,52 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-
-// ── Datos Iniciales (Mock con la nueva estructura) ──
-const INITIAL_DATA = [
-    {
-        empleadoId: "1",
-        nombres: "Alejandro",
-        apellidos: "Ruiz",
-        codigoEmpleado: "#EMP-2093",
-        correo: "a.ruiz@comisariato.hn",
-        departamento: "Logística y Distribución",
-        dni: "0601-1995-00123",
-        estado: "active",
-        limiteCredito: 1200.00,
-        salario: 15500.00,
-        telefono: "9988-7766",
-        fechaRegistro: "19 de marzo de 2026",
-        balance: 345.50, // Campo para la tabla
-        img: "https://i.pravatar.cc/150?u=1"
-    }
-];
+import { collection, onSnapshot, doc, setDoc, updateDoc, Timestamp, deleteDoc } from "firebase/firestore";
+import { db, auth } from "../firebase/firebase";
 
 export default function Empleados() {
-    const [employees, setEmployees] = useState(INITIAL_DATA);
+    const [employeesData, setEmployeesData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const PORCENTAJE_CREDITO_GLOBAL = 0.15;
-    const totalActivos = employees.filter(e => e.estado === 'active').length;
-    const totalInactivos = employees.filter(e => e.estado === 'inactive').length;
+
+    useEffect(() => {
+        const unsub = onSnapshot(collection(db, "empleados"), (snapshot) => {
+            setEmployeesData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsub();
+    }, []);
+
+    const employees = employeesData.map(e => ({
+        ...e,
+        empleadoId: e.id,
+        nombres: e.nombres || "",
+        apellidos: e.apellidos || "",
+        codigoEmpleado: e.codigoEmpleado || "N/A",
+        correo: e.correo || "",
+        departamento: e.departamento || "N/A",
+        dni: e.dni || "",
+        estado: e.estado || "active",
+        limiteCredito: e.limiteCredito || 0,
+        salario: e.salario || 0,
+        telefono: e.telefono || "",
+        fechaRegistro: e.fechaRegistro && typeof e.fechaRegistro.toDate === 'function' ? e.fechaRegistro.toDate().toLocaleDateString() : e.fechaRegistro || "",
+        balance: 0,
+        img: `https://ui-avatars.com/api/?name=${e.nombres ? e.nombres[0] : 'U'}`
+    }));
+
+    const totalActivos = employees.filter(e => e.estado === 'active' || e.estado === 'Activo').length;
+    const totalInactivos = employees.filter(e => e.estado === 'inactive' || e.estado === 'Inactivo').length;
     const sumaSalarios = employees.reduce((acc, curr) => acc + curr.salario, 0);
 
-    // Estado del formulario con todos tus campos
     const [formData, setFormData] = useState({
         nombres: "", apellidos: "", codigoEmpleado: "", correo: "",
         departamento: "Logística", dni: "", limiteCredito: 0,
-        salario: 0, telefono: "", estado: "active"
+        salario: 0, telefono: "", estado: "Activo"
     });
 
-    // Formateador a Lempiras
     const fmtL = (n) =>
         new Intl.NumberFormat("es-HN", {
             style: "currency",
@@ -57,27 +63,44 @@ export default function Empleados() {
             setFormData({
                 nombres: "", apellidos: "", codigoEmpleado: "", correo: "",
                 departamento: "Logística", dni: "", limiteCredito: 0,
-                salario: 0, telefono: "", estado: "active"
+                salario: 0, telefono: "", estado: "Activo"
             });
         }
         setIsModalOpen(true);
     };
 
-    const handleSave = (e) => {
+    const handleSave = async (e) => {
         e.preventDefault();
-        if (editingEmployee) {
-            setEmployees(employees.map(emp => emp.empleadoId === editingEmployee.empleadoId ? { ...formData, fechaModificacion: "22 de marzo de 2026", usuarioModifico: "Astrid" } : emp));
-        } else {
-            const newEmp = {
-                ...formData,
-                empleadoId: Date.now().toString(),
-                fechaRegistro: "22 de marzo de 2026",
-                balance: 0,
-                img: `https://i.pravatar.cc/150?u=${Date.now()}`
-            };
-            setEmployees([...employees, newEmp]);
+        const payload = {
+            nombres: formData.nombres,
+            apellidos: formData.apellidos,
+            codigoEmpleado: formData.codigoEmpleado,
+            correo: formData.correo,
+            departamento: formData.departamento,
+            dni: formData.dni,
+            limiteCredito: formData.limiteCredito,
+            salario: formData.salario,
+            telefono: formData.telefono,
+            estado: formData.estado === "active" ? "Activo" : formData.estado,
+            tipoModificacion: editingEmployee ? "Actualización" : "Creación",
+            usuarioModifico: auth.currentUser?.email || "Admin",
+            fechaModificacion: Timestamp.now()
+        };
+
+        try {
+            if (editingEmployee) {
+                await updateDoc(doc(db, "empleados", editingEmployee.empleadoId), payload);
+            } else {
+                payload.fechaRegistro = Timestamp.now();
+                payload.empleadoId = ""; 
+                const docRef = doc(collection(db, "empleados"));
+                payload.empleadoId = docRef.id;
+                await setDoc(docRef, payload);
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error(error);
         }
-        setIsModalOpen(false);
     };
 
     const filtered = employees.filter(e =>
@@ -197,7 +220,7 @@ export default function Empleados() {
                                                 <span className="material-symbols-outlined text-sm">visibility</span>
                                             </button>
                                             <button onClick={() => handleOpenModal(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><span className="material-symbols-outlined text-sm">edit</span></button>
-                                            <button onClick={() => setEmployees(employees.filter(x => x.empleadoId !== emp.empleadoId))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
+                                            <button onClick={async () => await deleteDoc(doc(db, "empleados", emp.empleadoId))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
                                         </div>
                                     </td>
                                 </tr>

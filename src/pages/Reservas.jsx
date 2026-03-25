@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { useAuth } from "../auth/AuthProvider";
 
 const INITIAL_RESERVAS = [
   {
@@ -118,6 +119,7 @@ const statusClass = {
 };
 
 export default function Reservas() {
+  const { userName, role: authRole } = useAuth();
   const [reservas, setReservas] = useState(INITIAL_RESERVAS);
   const [search, setSearch] = useState("");
   const [selectedReserva, setSelectedReserva] = useState(null);
@@ -227,7 +229,14 @@ export default function Reservas() {
               </button>
             </div>
             <div className="h-8 w-px bg-slate-200" />
-            <span className="text-sm font-semibold text-green-800">Comisariato Pro</span>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-green-800 uppercase leading-tight">
+                {userName || "Comisariato Pro"}
+              </p>
+              <p className="text-[10px] font-medium text-slate-500 capitalize leading-tight">
+                {authRole || "Admin"}
+              </p>
+            </div>
           </div>
         </div>
       </header>

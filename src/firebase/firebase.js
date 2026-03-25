@@ -12,23 +12,23 @@ import { getFirestore } from "firebase/firestore";
     Debes reemplazar estos valores con los de tu proyecto de Firebase
     Puedes obtenerlos en la consola de Firebase
 */
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyD3mTb3X7pqSHqlm7yIhk6-fn_ue7bT5bc",
-
   authDomain: "comisariato-adebf.firebaseapp.com",
-
   projectId: "comisariato-adebf",
-
   storageBucket: "comisariato-adebf.firebasestorage.app",
-
   messagingSenderId: "942279272049",
-
   appId: "1:942279272049:web:a6ff1cd147d27a43cc9dd0",
 };
+
 // Inicializa Firebase
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
+
+// Secondary app to create accounts without logging out the admin
+export const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
 
 // Inicializa el servicio de autenticacion
 export const auth = getAuth(app);
+export const secondaryAuth = getAuth(secondaryApp);
 // Inicializa el servicio de Firestore
 export const db = getFirestore(app);

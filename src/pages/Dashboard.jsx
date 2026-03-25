@@ -1,30 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { collection, onSnapshot, Timestamp } from "firebase/firestore";
+import { db } from "../firebase/firebase";
+import { useAuth } from "../auth/AuthProvider";
 
-const STORAGE_PREFIX = "dashboard-transactions";
 const EMPLEADOS_ACTIVOS_BASE = 840;
-const PEOPLE = [
-  "Roberto Mendoza",
-  "Elena Castillo",
-  "Mario Gomez",
-  "Lucia Herrera",
-  "Pedro Ruiz",
-  "Ana Lagos",
-  "Rosa Mendez",
-  "Jorge Avila",
-  "Maria Solis",
-  "Daniela Ordonez",
-];
-const DEPARTMENTS = [
-  "Corte de Cana",
-  "Logistica",
-  "Mantenimiento",
-  "Calidad",
-  "Empaque",
-  "Bodega",
-  "Produccion",
-];
 
 const getCurrentMonthKey = () => {
   const now = new Date();
@@ -38,11 +19,6 @@ const formatMonthLabel = (monthKey) => {
     month: "long",
     year: "numeric",
   }).format(date);
-};
-
-const getWeekBucket = (isoDate) => {
-  const day = new Date(`${isoDate}T12:00:00`).getDate();
-  return Math.min(4, Math.ceil(day / 7));
 };
 
 const formatAmount = (value) =>
@@ -61,114 +37,6 @@ const formatCompactAmount = (value) =>
     .format(value)
     .replace("HNL", "L");
 
-const createSeedTransactions = (monthKey) => {
-  const seed = [
-    { day: 2, amount: 1200, status: "APROBADO" },
-    { day: 4, amount: 450, status: "PENDIENTE" },
-    { day: 8, amount: 980, status: "APROBADO" },
-    { day: 10, amount: 1680, status: "APROBADO" },
-    { day: 14, amount: 760, status: "PENDIENTE" },
-    { day: 18, amount: 2300, status: "APROBADO" },
-    { day: 22, amount: 680, status: "PENDIENTE" },
-    { day: 25, amount: 2050, status: "APROBADO" },
-    { day: 27, amount: 870, status: "APROBADO" },
-    { day: 29, amount: 540, status: "PENDIENTE" },
-  ];
-
-  return seed.map((item, index) => ({
-    id: `${monthKey}-${index + 1}`,
-    name: PEOPLE[index % PEOPLE.length],
-    dept: DEPARTMENTS[index % DEPARTMENTS.length],
-    amount: item.amount,
-    status: item.status,
-    date: `${monthKey}-${String(item.day).padStart(2, "0")}`,
-  }));
-};
-
-const loadTransactionsForMonth = (monthKey) => {
-  if (typeof window === "undefined") return createSeedTransactions(monthKey);
-  const key = `${STORAGE_PREFIX}:${monthKey}`;
-  const raw = window.localStorage.getItem(key);
-
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      // Ignore malformed data and regenerate month data.
-    }
-  }
-
-  const seeded = createSeedTransactions(monthKey);
-  window.localStorage.setItem(key, JSON.stringify(seeded));
-  return seeded;
-};
-
-const saveTransactionsForMonth = (monthKey, transactions) => {
-  if (typeof window === "undefined") return;
-  const key = `${STORAGE_PREFIX}:${monthKey}`;
-  window.localStorage.setItem(key, JSON.stringify(transactions));
-};
-
-const buildMonthlyModel = (transactions) => {
-  const weeklyCompilation = [1, 2, 3, 4].map((week) => ({
-    label: `SEM ${week}`,
-    solicitudes: 0,
-    cobros: 0,
-  }));
-
-  transactions.forEach((tx) => {
-    const bucket = getWeekBucket(tx.date) - 1;
-    weeklyCompilation[bucket].solicitudes += tx.amount;
-    if (tx.status === "APROBADO") weeklyCompilation[bucket].cobros += tx.amount;
-  });
-
-  const pagosMensuales = transactions
-    .filter((tx) => tx.status === "APROBADO")
-    .reduce((sum, tx) => sum + tx.amount, 0);
-
-  const revisionesPendientes = transactions.filter(
-    (tx) => tx.status === "PENDIENTE",
-  ).length;
-  const reservasDelMes = new Set(transactions.map((tx) => tx.name)).size;
-  const creditosActivos = 1100 + transactions.length * 3;
-  const metaCobranza =
-    transactions.length > 0
-      ? Math.round(
-          (transactions.filter((tx) => tx.status === "APROBADO").length /
-            transactions.length) *
-            100,
-        )
-      : 0;
-
-  const approvals = [...transactions]
-    .sort((a, b) => (a.date < b.date ? 1 : -1))
-    .slice(0, 3)
-    .map((tx, idx) => ({
-      name: tx.name,
-      id: `#${String(90000 + idx + 1)}`,
-      amount: formatAmount(tx.amount),
-      dept: tx.dept,
-      status: tx.status,
-      statusClass:
-        tx.status === "APROBADO"
-          ? "bg-green-100 text-green-800"
-          : "bg-orange-100 text-orange-800",
-      dot: tx.status === "APROBADO" ? "bg-green-600" : "bg-orange-600",
-    }));
-
-  return {
-    creditosActivos,
-    revisionesPendientes,
-    pagosMensuales,
-    metaCobranza,
-    empleadosActivos: EMPLEADOS_ACTIVOS_BASE,
-    empleadosConReserva: reservasDelMes,
-    weeklyCompilation,
-    approvals,
-  };
-};
-
 const formatMoney = (value) =>
   `L ${Number(value).toLocaleString("es-HN", {
     minimumFractionDigits: 1,
@@ -176,32 +44,109 @@ const formatMoney = (value) =>
   })}k`;
 
 export default function Dashboard() {
+  const { userName, role: authRole } = useAuth();
   const [monthKey, setMonthKey] = useState(() => getCurrentMonthKey());
-  const [transactions, setTransactions] = useState(() =>
-    loadTransactionsForMonth(getCurrentMonthKey()),
-  );
+  const [empleadosData, setEmpleadosData] = useState([]);
+  const [creditosData, setCreditosData] = useState([]);
+  const [cuotasData, setCuotasData] = useState([]);
 
   useEffect(() => {
-    saveTransactionsForMonth(monthKey, transactions);
-  }, [monthKey, transactions]);
+    const unsubE = onSnapshot(collection(db, "empleados"), s => setEmpleadosData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubC = onSnapshot(collection(db, "creditos"), s => setCreditosData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const unsubQ = onSnapshot(collection(db, "cuotas"), s => setCuotasData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return () => { unsubE(); unsubC(); unsubQ(); };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
       const activeMonth = getCurrentMonthKey();
       if (activeMonth !== monthKey) {
         setMonthKey(activeMonth);
-        setTransactions(loadTransactionsForMonth(activeMonth));
       }
     }, 60000);
-
     return () => clearInterval(timer);
   }, [monthKey]);
 
   const monthLabel = useMemo(() => formatMonthLabel(monthKey), [monthKey]);
-  const monthlyData = useMemo(
-    () => buildMonthlyModel(transactions),
-    [transactions],
-  );
+
+  const monthlyData = useMemo(() => {
+    const [yearStr, monthStr] = monthKey.split("-");
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr);
+
+    const creditosMes = creditosData.filter(c => {
+       const date = c.fechaAutoriza?.toDate ? c.fechaAutoriza.toDate() : new Date();
+       return date.getFullYear() === year && (date.getMonth() + 1) === month;
+    });
+
+    const cuotasMes = cuotasData.filter(c => {
+       const date = c.fecha?.toDate ? c.fecha.toDate() : new Date();
+       return date.getFullYear() === year && (date.getMonth() + 1) === month;
+    });
+
+    const weeklyCompilation = [1, 2, 3, 4].map((week) => ({
+      label: `SEM ${week}`,
+      solicitudes: 0,
+      cobros: 0,
+    }));
+
+    creditosMes.forEach(tx => {
+       const date = tx.fechaAutoriza?.toDate ? tx.fechaAutoriza.toDate() : new Date();
+       const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
+       weeklyCompilation[bucket].solicitudes += Number(tx.totalCredito) || 0;
+    });
+
+    cuotasMes.forEach(tx => {
+       const date = tx.fecha?.toDate ? tx.fecha.toDate() : new Date();
+       const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
+       // If saldoPendiente === 0 it means it's paid (or practically speaking, the 'monto' is what we collected)
+       weeklyCompilation[bucket].cobros += Number(tx.monto) || 0;
+    });
+
+    const pagosMensuales = cuotasMes.reduce((sum, tx) => sum + (Number(tx.monto) || 0), 0);
+    const revisionesPendientes = creditosData.filter(c => c.estado === "Pendiente").length;
+    
+    const reservasDelMes = creditosMes.length;
+    const creditosActivos = creditosData.filter(c => c.estado === "Activo").length;
+    
+    // Meta example calculation. Let's make it hit 85 if we met goals.
+    const expected = cuotasMes.reduce((sum, tx) => sum + (Number(tx.monto) + Number(tx.saldoPendiente || 0)), 0);
+    const metaCobranza = expected > 0 ? Math.round((pagosMensuales / expected) * 100) : 100;
+
+    const approvals = [...creditosData]
+      .sort((a, b) => {
+         const dA = a.fechaAutoriza?.toDate ? a.fechaAutoriza.toDate().getTime() : 0;
+         const dB = b.fechaAutoriza?.toDate ? b.fechaAutoriza.toDate().getTime() : 0;
+         return dB - dA;
+      })
+      .slice(0, 5)
+      .map((tx, idx) => {
+         const emp = empleadosData.find(e => e.empleadoId === tx.empleadoId || e.id === tx.empleadoId) || {};
+         return {
+           name: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "Desconocido",
+           id: tx.creditoId || tx.id.substring(0,6).toUpperCase(),
+           amount: formatAmount(tx.totalCredito || 0),
+           dept: emp.departamento || "N/A",
+           status: tx.estado || "PENDIENTE",
+           statusClass: tx.estado === "Activo" ? "bg-green-100 text-green-800" : (tx.estado === "Finalizado" ? "bg-sky-100 text-sky-800" : "bg-orange-100 text-orange-800"),
+           dot: tx.estado === "Activo" ? "bg-green-600" : "bg-orange-600",
+         };
+      });
+
+    const empleadosActivos = empleadosData.filter(e => e.estado === "active" || e.estado === "Activo").length;
+
+    return {
+      creditosActivos,
+      revisionesPendientes,
+      pagosMensuales,
+      metaCobranza,
+      empleadosActivos: empleadosActivos > 0 ? empleadosActivos : EMPLEADOS_ACTIVOS_BASE,
+      empleadosConReserva: reservasDelMes,
+      weeklyCompilation,
+      approvals,
+    };
+  }, [monthKey, empleadosData, creditosData, cuotasData]);
+
   const maxSolicitudes = Math.max(
     ...monthlyData.weeklyCompilation.map((week) => week.solicitudes),
     1,
@@ -213,8 +158,8 @@ export default function Dashboard() {
       label: "Creditos Activos",
       value: monthlyData.creditosActivos.toLocaleString("es-HN"),
       sub: `Revisiones pendientes: ${monthlyData.revisionesPendientes}`,
-      badge: "+12%",
-      badgeClass: "bg-green-50 text-green-700",
+      badge: null,
+      badgeClass: "",
       iconBg: "bg-green-100 text-green-800",
       border: "border-green-800",
     },
@@ -278,8 +223,12 @@ export default function Dashboard() {
           </button>
           <div className="h-8 w-px bg-slate-200 hidden sm:block" />
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-bold text-gray-900">Comisariato Pro</p>
-            <p className="text-[10px] text-slate-500">Region Central</p>
+            <p className="text-xs font-bold text-gray-900 uppercase">
+              {userName || "Comisariato Pro"}
+            </p>
+            <p className="text-[10px] text-slate-500 capitalize">
+              {authRole || "Region Central"}
+            </p>
           </div>
         </div>
       </header>
