@@ -213,15 +213,7 @@ export default function Dashboard() {
             type="text"
           />
         </div>
-        <div className="flex items-center gap-4 ml-6 shrink-0">
-          <button className="relative text-slate-600 hover:text-green-900 transition-all">
-            <span className="material-symbols-outlined">notifications</span>
-            <span className="absolute top-0 right-0 w-2 h-2 bg-red-600 rounded-full border-2 border-white" />
-          </button>
-          <button className="text-slate-600 hover:text-green-900 transition-all">
-            <span className="material-symbols-outlined">settings</span>
-          </button>
-          <div className="h-8 w-px bg-slate-200 hidden sm:block" />
+        <div className="flex items-center ml-6 shrink-0">
           <div className="text-right hidden sm:block">
             <p className="text-xs font-bold text-gray-900 uppercase">
               {userName || "Comisariato Pro"}
@@ -464,13 +456,6 @@ export default function Dashboard() {
           </article>
         </div>
       </section>
-
-      <button
-        className="fixed bottom-8 right-8 w-14 h-14 text-white rounded-2xl shadow-xl flex items-center justify-center hover:scale-105 transition-all z-50"
-        style={{ background: "linear-gradient(135deg, #14532d 0%, #166534 100%)" }}
-      >
-        <span className="material-symbols-outlined">add</span>
-      </button>
     </motion.div>
   );
 }
