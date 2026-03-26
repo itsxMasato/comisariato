@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { collection, onSnapshot, doc, setDoc, updateDoc, Timestamp, deleteDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, updateDoc, Timestamp, deleteDoc, addDoc } from "firebase/firestore";
 import { db, auth } from "../firebase/firebase";
 
 export default function Empleados() {
@@ -11,6 +11,29 @@ export default function Empleados() {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const PORCENTAJE_CREDITO_GLOBAL = 0.15;
+    const [departamentos, setDepartamentos] = useState([]);
+    const [historialData, setHistorialData] = useState([]);
+
+    useEffect(() => {
+        const unsubDepto = onSnapshot(collection(db, "departamentos"), (snapshot) => {
+            const deptos = snapshot.docs.map(doc => ({
+                id: doc.id,
+                nombre: doc.data().nombre
+            }));
+            setDepartamentos(deptos);
+        });
+
+        return () => unsubDepto();
+    }, []);
+
+
+    useEffect(() => {
+        const unsubHistorial = onSnapshot(collection(db, "historial_empleados"), (snapshot) => {
+            setHistorialData(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsubHistorial();
+    }, []);
+
 
     useEffect(() => {
         const unsub = onSnapshot(collection(db, "empleados"), (snapshot) => {
@@ -41,11 +64,20 @@ export default function Empleados() {
     const totalInactivos = employees.filter(e => e.estado === 'inactive' || e.estado === 'Inactivo').length;
     const sumaSalarios = employees.reduce((acc, curr) => acc + curr.salario, 0);
 
+    const inactivosEnNomina = employees.filter(e => e.estado === 'inactive' || e.estado === 'Inactivo').length;
+    const eliminadosHistorico = historialData.filter(h => h.tipoModificacion === 'Eliminado').length;
+    const totalInactivosGeneral = inactivosEnNomina + eliminadosHistorico;
+
     const [formData, setFormData] = useState({
         nombres: "", apellidos: "", codigoEmpleado: "", correo: "",
-        departamento: "Logística", dni: "", limiteCredito: 0,
+        departamento: "", dni: "", limiteCredito: 0,
         salario: 0, telefono: "", estado: "Activo"
     });
+
+    const validarEmail = (email) => {
+        const regex = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
+        return regex.test(email);
+    };
 
     const fmtL = (n) =>
         new Intl.NumberFormat("es-HN", {
@@ -62,7 +94,7 @@ export default function Empleados() {
             setEditingEmployee(null);
             setFormData({
                 nombres: "", apellidos: "", codigoEmpleado: "", correo: "",
-                departamento: "Logística", dni: "", limiteCredito: 0,
+                departamento: "", dni: "", limiteCredito: 0,
                 salario: 0, telefono: "", estado: "Activo"
             });
         }
@@ -92,7 +124,7 @@ export default function Empleados() {
                 await updateDoc(doc(db, "empleados", editingEmployee.empleadoId), payload);
             } else {
                 payload.fechaRegistro = Timestamp.now();
-                payload.empleadoId = ""; 
+                payload.empleadoId = "";
                 const docRef = doc(collection(db, "empleados"));
                 payload.empleadoId = docRef.id;
                 await setDoc(docRef, payload);
@@ -100,6 +132,34 @@ export default function Empleados() {
             setIsModalOpen(false);
         } catch (error) {
             console.error(error);
+        }
+    };
+
+    const handleDeleteEmployee = async (emp) => {
+        if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${emp.nombres} ${emp.apellidos}?`)) return;
+
+        try {
+            await addDoc(collection(db, "historial_empleados"), {
+                apellidos: emp.apellidos || "",
+                codigoEmpleado: emp.codigoEmpleado || "",
+                correo: emp.correo || "",
+                departamento: emp.departamento || "",
+                dni: emp.dni || "",
+                empleadoId: emp.empleadoId || "",
+                estado: emp.estado || "",
+                fechaModificacion: Timestamp.now(),
+                fechaRegistro: Timestamp.now(),
+                limiteCreditos: emp.limiteCredito || 0,
+                nombres: emp.nombres || "",
+                salario: emp.salario || 0,
+                telefono: emp.telefono || "",
+                tipoModificacion: "Eliminado",
+                usuarioModifico: auth.currentUser?.email || "Admin"
+            });
+            await deleteDoc(doc(db, "empleados", emp.empleadoId));
+        } catch (error) {
+            console.error("Error al archivar y eliminar empleado:", error);
+            alert("Hubo un error al eliminar el empleado");
         }
     };
 
@@ -165,8 +225,10 @@ export default function Empleados() {
                     <div className="p-8 rounded-3xl text-white flex flex-col justify-between bg-gradient-to-br from-[#6c493d] to-[#523327]">
                         <span className="text-[10px] font-black text-amber-100/50 uppercase tracking-widest">Personal Inactivo</span>
                         <div>
-                            <p className="text-3xl font-black text-white" style={{ fontFamily: "Manrope, sans-serif" }}>{totalInactivos}</p>
-                            <p className="text-[10px] text-amber-100/40 font-medium">Bajas o suspensiones</p>
+                            <p className="text-3xl font-black text-white" style={{ fontFamily: "Manrope, sans-serif" }}>
+                                {totalInactivosGeneral}
+                            </p>
+                            <p className="text-[10px] text-amber-100/40 font-medium">Bajas y registros archivados</p>
                         </div>
                     </div>
                 </div>
@@ -220,7 +282,7 @@ export default function Empleados() {
                                                 <span className="material-symbols-outlined text-sm">visibility</span>
                                             </button>
                                             <button onClick={() => handleOpenModal(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><span className="material-symbols-outlined text-sm">edit</span></button>
-                                            <button onClick={async () => await deleteDoc(doc(db, "empleados", emp.empleadoId))} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
+                                            <button onClick={() => handleDeleteEmployee(emp)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
                                         </div>
                                     </td>
                                 </tr>
@@ -247,15 +309,48 @@ export default function Empleados() {
                             <form className="grid grid-cols-1 md:grid-cols-2 gap-5" onSubmit={handleSave}>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Nombres</label>
-                                    <input required value={formData.nombres} onChange={e => setFormData({ ...formData, nombres: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-2.5 text-sm outline-none focus:border-green-600" />
+                                    <input required value={formData.nombres}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/.test(val)) return;
+                                            setFormData({ ...formData, nombres: val });
+                                        }}
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-2.5 text-sm outline-none focus:border-green-600" />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Apellidos</label>
-                                    <input required value={formData.apellidos} onChange={e => setFormData({ ...formData, apellidos: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-2.5 text-sm outline-none focus:border-green-600" />
+                                    <input required value={formData.apellidos}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]*$/.test(val)) return;
+                                            setFormData({ ...formData, apellidos: val });
+                                        }} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-2.5 text-sm outline-none focus:border-green-600" />
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">DNI</label>
-                                    <input required value={formData.dni} onChange={e => setFormData({ ...formData, dni: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-2.5 text-sm outline-none focus:border-green-600" />
+                                    <input required value={formData.dni}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (!/^\d*$/.test(val)) return;
+                                            setFormData({ ...formData, dni: val });
+                                        }}
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-2.5 text-sm outline-none focus:border-green-600" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Departamento</label>
+                                    <select
+                                        required
+                                        value={formData.departamento}
+                                        onChange={e => setFormData({ ...formData, departamento: e.target.value })}
+                                        className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-2.5 text-sm outline-none focus:border-green-600 appearance-none"
+                                    >
+                                        <option value="" disabled>Seleccione un área</option>
+                                        {departamentos.map((depto) => (
+                                            <option key={depto.id} value={depto.nombre}>
+                                                {depto.nombre}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Código Empleado</label>
