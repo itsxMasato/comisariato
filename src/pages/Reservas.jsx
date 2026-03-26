@@ -99,7 +99,6 @@ const mapCreditoToReserva = (id, data, empleadosById, usuariosById) => {
   return {
     firebaseId: id,
     empleado: empleadoNombre,
-    empleadoId: data.empleadoId || empleadoDoc?.codigoEmpleado || "N/A",
     orderId: data.orderId || `RES-${String(id).slice(0, 6).toUpperCase()}`,
     createdAt: formatCreatedAt(data.createdAt, data.fecha, id),
     status: normalizeStatus(data.estado, data.status),
@@ -217,8 +216,7 @@ export default function Reservas() {
     return reservas.filter(
       (reserva) =>
         String(reserva.empleado || "").toLowerCase().includes(term) ||
-        String(reserva.orderId || "").toLowerCase().includes(term) ||
-        String(reserva.empleadoId || "").toLowerCase().includes(term),
+        String(reserva.orderId || "").toLowerCase().includes(term),
     );
   }, [reservas, search]);
 
@@ -515,9 +513,6 @@ export default function Reservas() {
                 >
                   {selectedReserva.empleado}
                 </h4>
-                <p className="text-sm text-slate-500">
-                  ID #{selectedReserva.empleadoId}
-                </p>
               </div>
 
               <button
