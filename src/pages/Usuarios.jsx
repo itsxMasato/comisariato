@@ -230,8 +230,8 @@ export default function Usuarios() {
       u.fechaActualizacion && typeof u.fechaActualizacion.toDate === "function"
         ? u.fechaActualizacion.toDate().toLocaleDateString()
         : u.fechaActualizacion instanceof Date
-        ? u.fechaActualizacion.toLocaleDateString()
-        : "",
+          ? u.fechaActualizacion.toLocaleDateString()
+          : "",
     img: "",
   }));
 
@@ -239,11 +239,11 @@ export default function Usuarios() {
   const roles =
     rolesData.length > 0
       ? rolesData.map((r) => ({
-          id: r.id,
-          name: r.nombre || "",
-          permissions: r.permisos || [],
-          estado: r.estado || "Activo",
-        }))
+        id: r.id,
+        name: r.nombre || "",
+        permissions: r.permisos || [],
+        estado: r.estado || "Activo",
+      }))
       : INITIAL_ROLES;
 
   // Roles activos — únicamente para selects de asignación
@@ -314,7 +314,7 @@ export default function Usuarios() {
       rol: updated.role,
       estado: updated.status,
       fechaActualizacion: Timestamp.now(),
-      tipoModificacion: "Actualización",
+      tipoModificacion: "Actualización de Usuario",
       usuarioModifico: auth.currentUser?.email || "Admin",
     });
     setEditUser(null);
@@ -792,11 +792,10 @@ export default function Usuarios() {
                       </button>
                       <button
                         onClick={() => toggleRoleStatus(role)}
-                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${
-                          isDisabled
-                            ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
-                            : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
-                        }`}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${isDisabled
+                          ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
+                          : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
+                          }`}
                       >
                         <span className="material-symbols-outlined text-sm">
                           {isDisabled ? "lock_open" : "lock"}
@@ -1054,13 +1053,12 @@ export default function Usuarios() {
                     <button
                       key={s}
                       onClick={() => setEditRole({ ...editRole, estado: s })}
-                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${
-                        (editRole.estado || "Activo") === s
-                          ? s === "Activo"
-                            ? "bg-green-800 text-white"
-                            : "bg-rose-600 text-white"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                      }`}
+                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${(editRole.estado || "Activo") === s
+                        ? s === "Activo"
+                          ? "bg-green-800 text-white"
+                          : "bg-rose-600 text-white"
+                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                        }`}
                     >
                       {s}
                     </button>

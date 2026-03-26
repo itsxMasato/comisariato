@@ -164,7 +164,14 @@ export default function SideBar({ isOpen, setIsOpen }) {
         {/* User + Logout */}
         <div className="p-4 border-t border-green-900/30 space-y-3">
           {/* User info */}
-          <div className="flex items-center gap-3">
+          <NavLink
+            to="/perfil"
+            className={({ isActive }) =>
+              `flex items-center gap-3 p-2 -mx-2 rounded-xl transition-colors ${
+                isActive ? "bg-green-900/50" : "hover:bg-green-900/30"
+              }`
+            }
+          >
             <div className="w-8 h-8 rounded-full bg-green-800 flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-green-200 text-base">
                 person
@@ -181,7 +188,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
                 {user?.email || ""}
               </p>
             </div>
-          </div>
+          </NavLink>
 
           {/* Logout */}
           <button

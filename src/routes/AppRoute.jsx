@@ -7,6 +7,7 @@ import { Toaster } from "sonner";
 import Login from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
 import Error403 from "../pages/Error403";
+import Perfil from "../pages/Perfil";
 
 // Productos
 import Productos from "../pages/Productos";
@@ -53,6 +54,7 @@ export default function AppRouter() {
         >
           {/* Dashboard */}
           <Route index element={<Dashboard />} />
+          <Route path="perfil" element={<Perfil />} />
 
           {/* Productos */}
           <Route path="productos" element={<Productos />} />
