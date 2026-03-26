@@ -331,14 +331,6 @@ export default function Reservas() {
           </div>
 
           <div className="hidden md:flex items-center gap-6 shrink-0">
-            <div className="flex gap-4">
-              <button className="text-slate-600 hover:text-green-900 transition-all">
-                <span className="material-symbols-outlined">notifications</span>
-              </button>
-              <button className="text-slate-600 hover:text-green-900 transition-all">
-                <span className="material-symbols-outlined">settings</span>
-              </button>
-            </div>
             <div className="h-8 w-px bg-slate-200" />
             <div className="text-right">
               <p className="text-sm font-semibold text-green-800 uppercase leading-tight">
