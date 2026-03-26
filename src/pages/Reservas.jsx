@@ -366,10 +366,6 @@ export default function Reservas() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <button className="inline-flex items-center gap-2 rounded-xl bg-slate-200 px-6 py-3 text-sm font-bold text-slate-600 hover:bg-slate-300 transition-colors">
-            <span className="material-symbols-outlined text-lg">filter_list</span>
-            Filtros
-          </button>
           <button className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-green-900 to-green-700 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-green-900/20 transition-colors hover:from-green-800 hover:to-green-700">
             <span className="material-symbols-outlined text-lg">download</span>
             Exportar Reporte
