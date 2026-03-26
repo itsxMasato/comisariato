@@ -1,107 +1,14 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "../auth/AuthProvider";
-
-const INITIAL_RESERVAS = [
-  {
-    id: 1,
-    empleado: "Carlos Eduardo Mendez",
-    empleadoId: "EMP-4829",
-    area: "Planta Procesadora 1",
-    turno: "Turno A",
-    departamento: "Cane Fields Dept",
-    orderId: "ORD-99210",
-    createdAt: "Hoy, 09:42 AM",
-    status: "Pendiente",
-    observation: "",
-    items: [
-      {
-        icon: "wb_sunny",
-        name: "Kit de Proteccion Solar Premium",
-        qty: 1,
-        unitPrice: 12.5,
-      },
-      {
-        icon: "restaurant",
-        name: "Bono Almuerzo Ejecutivo (Semanal)",
-        qty: 5,
-        unitPrice: 8,
-      },
-    ],
-  },
-  {
-    id: 2,
-    empleado: "Elena Patricia Ruiz",
-    empleadoId: "EMP-3102",
-    area: "Bodega Central",
-    turno: "Turno B",
-    departamento: "Empaque",
-    orderId: "ORD-99209",
-    createdAt: "Hoy, 09:27 AM",
-    status: "Pendiente",
-    observation: "",
-    items: [
-      {
-        icon: "medical_services",
-        name: "Kit de Botiquin Basico",
-        qty: 2,
-        unitPrice: 11.25,
-      },
-      {
-        icon: "soap",
-        name: "Paquete de Higiene",
-        qty: 1,
-        unitPrice: 18.75,
-      },
-    ],
-  },
-  {
-    id: 3,
-    empleado: "Samuel Antonio Sosa",
-    empleadoId: "EMP-2218",
-    area: "Campo Norte",
-    turno: "Turno C",
-    departamento: "Riego",
-    orderId: "ORD-99208",
-    createdAt: "Hoy, 08:58 AM",
-    status: "Aprobado",
-    observation: "",
-    items: [
-      {
-        icon: "restaurant",
-        name: "Bono Almuerzo Diario",
-        qty: 1,
-        unitPrice: 15,
-      },
-    ],
-  },
-  {
-    id: 4,
-    empleado: "Veronica Cedeno",
-    empleadoId: "EMP-1907",
-    area: "Planta Procesadora 2",
-    turno: "Turno A",
-    departamento: "Calidad",
-    orderId: "ORD-99207",
-    createdAt: "Hoy, 08:22 AM",
-    status: "Rechazado",
-    observation: "Monto excede el limite semanal autorizado.",
-    items: [
-      {
-        icon: "cleaning_services",
-        name: "Kit de Limpieza Personal",
-        qty: 1,
-        unitPrice: 14.5,
-      },
-      {
-        icon: "child_care",
-        name: "Utiles Escolares",
-        qty: 1,
-        unitPrice: 15.25,
-      },
-    ],
-  },
-];
+import {
+  collection,
+  updateDoc,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../firebase/firebase";
 
 const formatCurrency = (value) =>
   `L ${Number(value).toLocaleString("es-HN", {
@@ -112,6 +19,95 @@ const formatCurrency = (value) =>
 const getTotal = (items) =>
   items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
 
+const normalizeStatus = (estado, status) => {
+  const raw = String(estado || status || "pendiente").toLowerCase();
+  if (raw === "aprobado") return "Aprobado";
+  if (raw === "rechazado") return "Rechazado";
+  if (raw === "activo" || raw === "pagado") return "Aprobado";
+  return "Pendiente";
+};
+
+const isReservaState = (estado, status) => {
+  const raw = String(estado || status || "").toLowerCase();
+  return raw === "pendiente" || raw === "aprobado" || raw === "rechazado";
+};
+
+const isReservaDoc = (data) => {
+  const hasEmpleado = Boolean(data.empleadoId);
+  const hasProducto = Boolean(data.productoId || data.nombreProducto);
+  const hasCantidad = Number.isFinite(Number(data.cantidad));
+  const hasTotal = Number.isFinite(Number(data.total));
+  const hasTipoPago = Boolean(data.tipoPago);
+  return hasEmpleado && hasProducto && hasCantidad && hasTotal && hasTipoPago;
+};
+
+const fullEmployeeName = (empleadoDoc) => {
+  if (!empleadoDoc) return "";
+  const nombreCompleto = [empleadoDoc.nombres, empleadoDoc.apellidos]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  if (nombreCompleto) return nombreCompleto;
+  return empleadoDoc.nombre || empleadoDoc.displayName || "";
+};
+
+const formatCreatedAt = (createdAt, fecha, fallbackId) => {
+  if (createdAt?.toDate) {
+    return createdAt.toDate().toLocaleString("es-HN");
+  }
+  if (createdAt instanceof Date) {
+    return createdAt.toLocaleString("es-HN");
+  }
+  if (typeof createdAt === "string" && createdAt.trim()) {
+    return createdAt;
+  }
+  if (typeof fecha === "string" && fecha.trim()) {
+    return fecha;
+  }
+  return `RES-${String(fallbackId || "").slice(0, 6).toUpperCase()}`;
+};
+
+const mapCreditoToReserva = (id, data, empleadosById, usuariosById) => {
+  const empleadoDoc = empleadosById[data.empleadoId] || null;
+  const usuarioDoc = usuariosById[data.empleadoId] || null;
+  const empleadoNombre =
+    data.empleado ||
+    data.empleadoNombre ||
+    fullEmployeeName(empleadoDoc) ||
+    usuarioDoc?.nombre ||
+    usuarioDoc?.nombres ||
+    data.empleadoId ||
+    "Empleado";
+  const cantidad = Number(data.cantidad || 0);
+  const total = Number(data.total || 0);
+  const unitPrice = cantidad > 0 ? total / cantidad : total;
+  const items = Array.isArray(data.items) && data.items.length
+    ? data.items.map((item) => ({
+        ...item,
+        qty: Number(item.qty || 0),
+        unitPrice: Number(item.unitPrice || 0),
+      }))
+    : [
+        {
+          icon: "inventory_2",
+          name: data.productoNombre || data.productoId || "Producto",
+          qty: cantidad > 0 ? cantidad : 1,
+          unitPrice,
+        },
+      ];
+
+  return {
+    firebaseId: id,
+    empleado: empleadoNombre,
+    empleadoId: data.empleadoId || empleadoDoc?.codigoEmpleado || "N/A",
+    orderId: data.orderId || `RES-${String(id).slice(0, 6).toUpperCase()}`,
+    createdAt: formatCreatedAt(data.createdAt, data.fecha, id),
+    status: normalizeStatus(data.estado, data.status),
+    observation: data.observation || data.observacion || "",
+    items,
+  };
+};
+
 const statusClass = {
   Pendiente: "bg-amber-100 text-amber-800",
   Aprobado: "bg-emerald-100 text-emerald-700",
@@ -120,21 +116,109 @@ const statusClass = {
 
 export default function Reservas() {
   const { userName, role: authRole } = useAuth();
-  const [reservas, setReservas] = useState(INITIAL_RESERVAS);
+  const [reservas, setReservas] = useState([]);
+  const [empleadosById, setEmpleadosById] = useState({});
+  const [usuariosById, setUsuariosById] = useState({});
   const [search, setSearch] = useState("");
   const [selectedReserva, setSelectedReserva] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [observacion, setObservacion] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Cargar reservas desde Firebase en tiempo real
+  useEffect(() => {
+    const empleadosRef = collection(db, "empleados");
+    const unsubscribe = onSnapshot(
+      empleadosRef,
+      (snapshot) => {
+        const map = {};
+        snapshot.docs.forEach((snapshotDoc) => {
+          const data = snapshotDoc.data();
+          const keys = [snapshotDoc.id, data.empleadoId, data.uid, data.usuarioId];
+          keys.forEach((key) => {
+            if (key) map[String(key)] = data;
+          });
+        });
+        setEmpleadosById(map);
+      },
+      (err) => {
+        console.error("Error cargando empleados:", err);
+      },
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const usuariosRef = collection(db, "usuarios");
+    const unsubscribe = onSnapshot(
+      usuariosRef,
+      (snapshot) => {
+        const map = {};
+        snapshot.docs.forEach((snapshotDoc) => {
+          const data = snapshotDoc.data();
+          const keys = [snapshotDoc.id, data.uid, data.usuarioId, data.empleadoId];
+          keys.forEach((key) => {
+            if (key) map[String(key)] = data;
+          });
+        });
+        setUsuariosById(map);
+      },
+      (err) => {
+        console.error("Error cargando usuarios:", err);
+      },
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  // Cargar reservas desde Firebase en tiempo real
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const reservasRef = collection(db, "creditos");
+      const unsubscribe = onSnapshot(
+        reservasRef,
+        (snapshot) => {
+          const reservasData = snapshot.docs
+            .map((snapshotDoc) => ({ id: snapshotDoc.id, data: snapshotDoc.data() }))
+            .filter(
+              (item) =>
+                isReservaState(item.data.estado, item.data.status) &&
+                isReservaDoc(item.data) &&
+                Boolean(empleadosById[item.data.empleadoId] || usuariosById[item.data.empleadoId]),
+            )
+            .map((item) => mapCreditoToReserva(item.id, item.data, empleadosById, usuariosById));
+          setReservas(reservasData);
+          setLoading(false);
+        },
+        (err) => {
+          console.error("Error cargando reservas:", err);
+          setError("Error al cargar las reservas");
+          setLoading(false);
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (err) {
+      console.error("Error al configurar la escucha de reservas:", err);
+      setError("Error al conectar con la base de datos");
+      setLoading(false);
+    }
+  }, [empleadosById, usuariosById]);
 
   const filteredReservas = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return reservas;
     return reservas.filter(
       (reserva) =>
-        reserva.empleado.toLowerCase().includes(term) ||
-        reserva.orderId.toLowerCase().includes(term) ||
-        reserva.empleadoId.toLowerCase().includes(term),
+        String(reserva.empleado || "").toLowerCase().includes(term) ||
+        String(reserva.orderId || "").toLowerCase().includes(term) ||
+        String(reserva.empleadoId || "").toLowerCase().includes(term),
     );
   }, [reservas, search]);
 
@@ -168,32 +252,42 @@ export default function Reservas() {
     setObservacion("");
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!selectedReserva) return;
-    setReservas((prev) =>
-      prev.map((reserva) =>
-        reserva.id === selectedReserva.id
-          ? { ...reserva, status: "Aprobado", observation: "" }
-          : reserva,
-      ),
-    );
-    closeModal();
+
+    try {
+      const reservaRef = doc(db, "creditos", selectedReserva.firebaseId);
+      await updateDoc(reservaRef, {
+        estado: "aprobado",
+        status: "Aprobado",
+        observacion: "",
+        observation: "",
+        updatedAt: serverTimestamp(),
+      });
+      closeModal();
+    } catch (err) {
+      console.error("Error al aprobar reserva:", err);
+      setError("Error al aprobar la reserva");
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedReserva || !observacion.trim()) return;
-    setReservas((prev) =>
-      prev.map((reserva) =>
-        reserva.id === selectedReserva.id
-          ? {
-              ...reserva,
-              status: "Rechazado",
-              observation: observacion.trim(),
-            }
-          : reserva,
-      ),
-    );
-    closeModal();
+
+    try {
+      const reservaRef = doc(db, "creditos", selectedReserva.firebaseId);
+      await updateDoc(reservaRef, {
+        estado: "rechazado",
+        status: "Rechazado",
+        observacion: observacion.trim(),
+        observation: observacion.trim(),
+        updatedAt: serverTimestamp(),
+      });
+      closeModal();
+    } catch (err) {
+      console.error("Error al rechazar reserva:", err);
+      setError("Error al rechazar la reserva");
+    }
   };
 
   return (
@@ -204,6 +298,23 @@ export default function Reservas() {
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="space-y-8 bg-gray-50 text-gray-900"
       >
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+            <p className="text-sm font-bold text-red-800">{error}</p>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <div className="inline-block mb-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-700" />
+              </div>
+              <p className="text-slate-600 font-medium">Cargando reservas...</p>
+            </div>
+          </div>
+        ) : (
+          <>
       <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8 -mt-6 md:-mt-10 pt-4 pb-4">
         <div className="flex items-center justify-between gap-4 w-full">
           <div className="relative w-full max-w-md mt-2 md:mt-0">
@@ -351,7 +462,7 @@ export default function Reservas() {
             <div className="space-y-4">
               {filteredReservas.map((reserva) => (
                 <div
-                  key={reserva.id}
+                  key={reserva.firebaseId}
                   className="flex flex-col gap-4 rounded-2xl bg-white p-4 transition-shadow hover:shadow-md md:flex-row md:items-center md:justify-between"
                 >
                   <div className="flex items-center gap-4">
@@ -400,6 +511,8 @@ export default function Reservas() {
           </article>
         </div>
       </section>
+          </>
+        )}
       </motion.div>
 
       {showModal && selectedReserva && (
@@ -417,7 +530,7 @@ export default function Reservas() {
                   {selectedReserva.empleado}
                 </h4>
                 <p className="text-sm text-slate-500">
-                  ID #{selectedReserva.empleadoId} - {selectedReserva.area}
+                  ID #{selectedReserva.empleadoId}
                 </p>
               </div>
 
@@ -429,26 +542,12 @@ export default function Reservas() {
               </button>
             </div>
 
-            <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl bg-slate-50 p-4 md:grid-cols-3">
+            <div className="mb-6 grid grid-cols-1 gap-4 rounded-2xl bg-slate-50 p-4 md:grid-cols-1">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
                   Pedido
                 </p>
                 <p className="text-sm font-black text-green-800">#{selectedReserva.orderId}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Turno
-                </p>
-                <p className="text-sm font-semibold text-slate-900">{selectedReserva.turno}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                  Departamento
-                </p>
-                <p className="text-sm font-semibold text-slate-900">
-                  {selectedReserva.departamento}
-                </p>
               </div>
             </div>
 
