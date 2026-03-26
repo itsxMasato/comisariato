@@ -28,6 +28,12 @@ import Reservas from "../pages/Reservas";
 // Usuarios del sistema (solo admin)
 import Usuarios from "../pages/Usuarios";
 
+// Bitacora (solo admin)
+import Bitacora from "../pages/Bitacora";
+
+// Datos Variables (solo admin)
+import DatosVariables from "../pages/DatosVariables";
+
 export default function AppRouter() {
   return (
     <>
@@ -71,6 +77,22 @@ export default function AppRouter() {
             element={
               <AdminRoute>
                 <Usuarios />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="bitacora"
+            element={
+              <AdminRoute>
+                <Bitacora />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="datosvariables"
+            element={
+              <AdminRoute>
+                <DatosVariables />
               </AdminRoute>
             }
           />
