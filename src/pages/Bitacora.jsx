@@ -103,6 +103,96 @@ const TablaBitacora = () => {
         </div>
     );
 
+    const handleExportReport = (moduloReport = "Todos los módulos") => {
+        const listToExport = moduloReport === "Todos los módulos"
+            ? datosFiltrados // Use filtered or total datos? The user probably wants search included, let's use datosFiltrados but allow the override
+            : datosFiltrados.filter((d) => d.coleccion === moduloReport);
+
+        const reportLabel = moduloReport === "Todos los módulos"
+            ? "MÚLTIPLES ÁREAS"
+            : `${moduloReport.toUpperCase()}`;
+
+        const dateStr = new Date().toLocaleDateString("es-HN");
+        const totalItems = listToExport.length;
+
+        const reportHtml = `
+            <!DOCTYPE html>
+            <html lang="es">
+            <head>
+                <meta charset="utf-8"/>
+                <title>Reporte de Auditoría - Comisariato Pro</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Inter:wght@400;600&display=swap" rel="stylesheet"/>
+                <style>
+                    @media print { @page { size: A4; margin: 0; } body { background-color: white !important; -webkit-print-color-adjust: exact; } .no-print { display: none !important; } }
+                    .a4-canvas { width: 210mm; min-height: 297mm; background-color: white; margin: 0 auto; padding: 3rem; }
+                    body { font-family: 'Inter', sans-serif; }
+                    .font-headline { font-family: 'Manrope', sans-serif; }
+                </style>
+            </head>
+            <body class="bg-gray-100">
+                <div class="a4-canvas shadow-2xl flex flex-col mx-auto my-8">
+                    <header class="w-full pb-4 border-b-2 border-slate-800 flex justify-between items-end mb-10">
+                        <div class="flex flex-col">
+                            <span class="text-2xl font-extrabold tracking-tighter text-slate-800 font-headline uppercase">COMISARIATO PRO</span>
+                            <span class="font-headline uppercase tracking-widest text-[11px] font-bold text-slate-500 mt-1">BITÁCORA - ${reportLabel} - ${dateStr}</span>
+                        </div>
+                        <div class="text-right text-slate-800 font-headline font-bold text-[10px] tracking-widest uppercase">Auditoría CISA</div>
+                    </header>
+
+                    <section class="grid grid-cols-2 gap-6 mb-10">
+                        <div class="bg-[#f2f4f2] p-5 border-l-4 border-slate-800">
+                            <p class="font-headline text-[9px] uppercase tracking-wider text-gray-500 mb-1">Registros Auditados</p>
+                            <p class="text-xl font-bold text-slate-800 font-headline">${totalItems}</p>
+                        </div>
+                    </section>
+
+                    <section class="flex-grow">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-[#e1e3e1]">
+                                <tr>
+                                    <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800">Fecha y Hora</th>
+                                    <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800">Usuario</th>
+                                    <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800">Módulo</th>
+                                    <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-[11px]">
+                                ${listToExport
+                                    .map(
+                                        (p) => `
+                                    <tr class="border-b border-gray-100">
+                                        <td class="px-4 py-3 font-bold text-gray-800">${p.fecha.toLocaleString('es-HN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
+                                        <td class="px-4 py-3 font-mono text-gray-500">${p.usuario}</td>
+                                        <td class="px-4 py-3 text-slate-800 font-bold">${p.coleccion}</td>
+                                        <td class="px-4 py-3 font-bold text-[9px] uppercase ${p.accion.includes("Creado") ? "text-green-600" : p.accion.includes("Editado") ? "text-amber-600" : "text-gray-500"}">${p.accion}</td>
+                                    </tr>
+                                `,
+                                    )
+                                    .join("")}
+                            </tbody>
+                        </table>
+                    </section>
+
+                    <footer class="mt-auto border-t border-gray-100 pt-12 pb-6">
+                        <div class="flex justify-between items-end pt-4 border-t border-slate-50">
+                            <p class="font-headline text-[8px] uppercase tracking-wider text-gray-400 italic text-left">Documento confidencial interno generado por sistema.</p>
+                            <p class="font-headline text-[9px] uppercase tracking-wider font-bold text-slate-800">Emisión: ${dateStr}</p>
+                        </div>
+                    </footer>
+                </div>
+                <div class="fixed bottom-8 right-8 no-print">
+                    <button onclick="window.print()" class="bg-slate-800 text-white px-8 py-3 rounded-full font-bold shadow-xl">Imprimir Reporte</button>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const printWin = window.open("", "_blank");
+        printWin.document.write(reportHtml);
+        printWin.document.close();
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -121,9 +211,9 @@ const TablaBitacora = () => {
             </section>
 
             {/* ── PANEL DE FILTROS AVANZADOS ── */}
-            <section className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+            <section className="flex flex-col md:flex-row flex-wrap md:items-end gap-6 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
                 {/* Buscador */}
-                <div className="relative">
+                <div className="relative flex-1 min-w-[200px]">
                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Buscar Registro</label>
                     <span className="material-symbols-outlined absolute left-3 top-[38px] text-slate-400 text-lg">search</span>
                     <input
@@ -136,7 +226,7 @@ const TablaBitacora = () => {
                 </div>
 
                 {/* Filtro Módulo */}
-                <div>
+                <div className="flex-1 min-w-[200px]">
                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Módulo / Tabla</label>
                     <select
                         value={filtroModulo}
@@ -151,20 +241,36 @@ const TablaBitacora = () => {
                 </div>
 
                 {/* Filtro Fecha Rapida */}
-                <div>
+                <div className="flex-1 min-w-[200px]">
                     <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Rango de Tiempo</label>
                     <div className="flex gap-2">
                         {["Todos", "Hoy"].map((t) => (
                             <button
                                 key={t}
                                 onClick={() => setFiltroTiempo(t)}
-                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${filtroTiempo === t ? "bg-green-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${filtroTiempo === t ? "bg-green-800 text-white shadow-md shadow-green-900/20" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
                                     }`}
                             >
                                 {t}
                             </button>
                         ))}
                     </div>
+                </div>
+
+                {/* Botón PDF (Dropdown) */}
+                <div className="relative group text-sm font-bold min-w-[200px] z-40">
+                  <button className="w-full flex items-center justify-center gap-2 bg-slate-900 border border-slate-800 px-6 py-2.5 text-sm font-bold text-white hover:bg-black transition-colors rounded-xl shadow-lg shadow-black/10">
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    PDF
+                    <span className="material-symbols-outlined text-sm">expand_more</span>
+                  </button>
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all flex flex-col p-2">
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest px-4 py-2 opacity-60">Filtrar PDF por</span>
+                    <button onClick={() => handleExportReport("Todos los módulos")} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Reporte Global</button>
+                    {Array.from(new Set(datos.map(d => d.coleccion))).map(c => (
+                      <button key={c} onClick={() => handleExportReport(c)} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">{c}</button>
+                    ))}
+                  </div>
                 </div>
             </section>
 

@@ -7,6 +7,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 // Importa el servicio de Firestore
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 /* Configuración de Firebase
     Debes reemplazar estos valores con los de tu proyecto de Firebase
@@ -32,3 +33,4 @@ export const auth = getAuth(app);
 export const secondaryAuth = getAuth(secondaryApp);
 // Inicializa el servicio de Firestore
 export const db = getFirestore(app);
+export const storage = getStorage(app);

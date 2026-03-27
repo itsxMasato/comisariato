@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   collection,
@@ -12,7 +13,6 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, secondaryAuth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
-// --- AVATAR COMPONENT ---
 function AvatarWithFallback({ name, img, size = "md" }) {
   const sizes = {
     sm: "w-8 h-8 text-xs",
@@ -195,7 +195,8 @@ function Toast({ message, show }) {
 
 // --- MAIN ---
 export default function Usuarios() {
-  const { userName, role: authRole } = useAuth();
+  const { userName, role: authRole, photoURL } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("usuarios");
 
   const [usersData, setUsersData] = useState([]);
@@ -232,22 +233,129 @@ export default function Usuarios() {
         : u.fechaActualizacion instanceof Date
           ? u.fechaActualizacion.toLocaleDateString()
           : "",
-    img: "",
+    img: u.fotoURL || "",
   }));
 
   // ✅ roles con campo `estado` mapeado
   const roles =
     rolesData.length > 0
       ? rolesData.map((r) => ({
-        id: r.id,
-        name: r.nombre || "",
-        permissions: r.permisos || [],
-        estado: r.estado || "Activo",
-      }))
+          id: r.id,
+          name: r.nombre || "",
+          permissions: r.permisos || [],
+          estado: r.estado || "Activo",
+        }))
       : INITIAL_ROLES;
 
   // Roles activos — únicamente para selects de asignación
   const activeRoles = roles.filter((r) => r.estado === "Activo");
+
+  const handleExportReport = (roleReport = "Todos los Roles") => {
+    const listToExport = roleReport === "Todos los Roles"
+      ? users
+      : users.filter((u) => u.role === roleReport);
+
+    const reportLabel = roleReport === "Todos los Roles"
+      ? "GLOBAL DE USUARIOS"
+      : `USUARIOS - ROL: ${roleReport.toUpperCase()}`;
+
+    const dateStr = new Date().toLocaleDateString("es-HN");
+    const totalItems = listToExport.length;
+    const activosItems = listToExport.filter((u) => u.status === "Activo").length;
+
+    const reportHtml = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="utf-8"/>
+        <title>Reporte de Usuarios - Comisariato Pro</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700;800&family=Inter:wght@400;600&display=swap" rel="stylesheet"/>
+        <style>
+          @media print { @page { size: A4; margin: 0; } body { background-color: white !important; -webkit-print-color-adjust: exact; } .no-print { display: none !important; } }
+          .a4-canvas { width: 210mm; min-height: 297mm; background-color: white; margin: 0 auto; padding: 3rem; }
+          body { font-family: 'Inter', sans-serif; }
+          .font-headline { font-family: 'Manrope', sans-serif; }
+        </style>
+      </head>
+      <body class="bg-gray-100">
+        <div class="a4-canvas shadow-2xl flex flex-col mx-auto my-8">
+          <header class="w-full pb-4 border-b-2 border-slate-800 flex justify-between items-end mb-10">
+            <div class="flex flex-col">
+              <span class="text-2xl font-extrabold tracking-tighter text-slate-800 font-headline uppercase">COMISARIATO PRO</span>
+              <span class="font-headline uppercase tracking-widest text-[11px] font-bold text-slate-500 mt-1">REPORTE ${reportLabel} - ${dateStr}</span>
+            </div>
+            <div class="text-right text-slate-800 font-headline font-bold text-[10px] tracking-widest uppercase">Dirección y RRHH</div>
+          </header>
+
+          <section class="grid grid-cols-2 gap-6 mb-10">
+            <div class="bg-[#f2f4f2] p-5 border-l-4 border-slate-800">
+              <p class="font-headline text-[9px] uppercase tracking-wider text-gray-500 mb-1">Total Entradas Registradas</p>
+              <p class="text-xl font-bold text-slate-800 font-headline">${totalItems}</p>
+            </div>
+            <div class="bg-[#f2f4f2] p-5 border-l-4 border-green-800">
+              <p class="font-headline text-[9px] uppercase tracking-wider text-gray-500 mb-1">Cuentas Activas</p>
+              <p class="text-xl font-bold text-green-800 font-headline">${activosItems}</p>
+            </div>
+          </section>
+
+          <section class="flex-grow">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-[#e1e3e1]">
+                <tr>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800">Nombre</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800">Correo</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800">Rol</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800 text-center">Estado</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-slate-800 text-right">Último Acceso</th>
+                </tr>
+              </thead>
+              <tbody class="text-[11px]">
+                ${listToExport
+                  .map(
+                    (p) => `
+                  <tr class="border-b border-gray-100">
+                    <td class="px-4 py-3 font-bold text-gray-800">${p.name}</td>
+                    <td class="px-4 py-3 font-mono text-gray-400">${p.email}</td>
+                    <td class="px-4 py-3 text-gray-500 font-bold">${p.role}</td>
+                    <td class="px-4 py-3 text-center uppercase font-black text-[9px] ${p.status === "Activo" ? "text-green-600" : "text-slate-400"}">${p.status}</td>
+                    <td class="px-4 py-3 text-right text-gray-400">${p.lastAccess || "N/A"}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </section>
+
+          <footer class="mt-auto border-t border-gray-100 pt-12 pb-6">
+            <div class="grid grid-cols-2 gap-12 w-full px-4 mb-8">
+              <div class="flex flex-col items-center">
+                <div class="w-full border-b border-gray-400 mb-2"></div>
+                <p class="font-headline text-[9px] uppercase tracking-wider font-bold text-slate-800">Recursos Humanos</p>
+              </div>
+              <div class="flex flex-col items-center">
+                <div class="w-full border-b border-gray-400 mb-2"></div>
+                <p class="font-headline text-[9px] uppercase tracking-wider font-bold text-slate-800">Gerencia General</p>
+              </div>
+            </div>
+            <div class="flex justify-between items-end pt-4 border-t border-slate-50">
+              <p class="font-headline text-[8px] uppercase tracking-wider text-gray-400 italic text-left">Documento confidencial interno.</p>
+              <p class="font-headline text-[9px] uppercase tracking-wider font-bold text-slate-800">Emisión: ${dateStr}</p>
+            </div>
+          </footer>
+        </div>
+        <div class="fixed bottom-8 right-8 no-print">
+          <button onclick="window.print()" class="bg-slate-800 text-white px-8 py-3 rounded-full font-bold shadow-xl">Imprimir Reporte</button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWin = window.open("", "_blank");
+    printWin.document.write(reportHtml);
+    printWin.document.close();
+  };
 
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("Todos los Roles");
@@ -427,8 +535,8 @@ export default function Usuarios() {
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      {/* HEADER */}
-      <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8 pt-2">
+      {/* TABS NAVEGACIÓN LOCAL */}
+      <div className="mb-6 mb-8 mt-4 border-b border-slate-200 pb-2 flex justify-start pl-2 md:pl-4">
         <nav
           className="flex gap-6 font-semibold text-sm"
           style={{ fontFamily: "Manrope,sans-serif" }}
@@ -444,27 +552,7 @@ export default function Usuarios() {
           ))}
           <span className="text-slate-300 cursor-not-allowed pb-1">Logs</span>
         </nav>
-        <div className="flex items-center gap-4">
-          <span className="material-symbols-outlined text-green-900 cursor-pointer p-2 rounded-full hover:bg-slate-100 transition-all">
-            notifications
-          </span>
-          <div className="h-8 w-[1px] bg-slate-200 mx-1" />
-          <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-100 p-1 pr-3 rounded-full transition-all">
-            <AvatarWithFallback name={userName || "Usuario"} img="" size="sm" />
-            <div className="flex flex-col items-start leading-none">
-              <span
-                className="text-xs font-bold text-green-900 uppercase"
-                style={{ fontFamily: "Manrope,sans-serif" }}
-              >
-                {userName || "USUARIO"}
-              </span>
-              <span className="text-[10px] text-slate-500 capitalize">
-                {authRole || "Invitado"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -485,15 +573,29 @@ export default function Usuarios() {
                   Gestión centralizada de credenciales y permisos de empleados.
                 </p>
               </div>
-              <button
-                onClick={() => setIsPanelOpen(true)}
-                className="text-white px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg bg-green-800 hover:bg-green-900 transition-all active:scale-95"
-              >
-                <span className="material-symbols-outlined text-lg">
-                  person_add
-                </span>
-                <span>Nuevo Usuario</span>
-              </button>
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="relative group text-sm font-bold w-full sm:w-auto z-40 flex-1 sm:flex-none">
+                  <button className="w-full sm:w-auto bg-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-300 transition-all active:scale-95" title="Exportar Reporte">
+                    <span className="material-symbols-outlined text-lg">download</span>
+                    PDF
+                    <span className="material-symbols-outlined text-sm">expand_more</span>
+                  </button>
+                  <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all flex flex-col p-2">
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest px-4 py-2 opacity-60">Seleccionar Rol</span>
+                    <button onClick={() => handleExportReport("Todos los Roles")} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Todos los Roles</button>
+                    {activeRoles.map(r => (
+                      <button key={r.id} onClick={() => handleExportReport(r.name)} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">{r.name}</button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsPanelOpen(true)}
+                  className="text-white px-6 py-3 flex-1 sm:flex-none rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg bg-green-800 hover:bg-green-900 transition-all active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-lg">person_add</span>
+                  <span>Nuevo Usuario</span>
+                </button>
+              </div>
             </div>
 
             {/* Stats */}
@@ -792,10 +894,11 @@ export default function Usuarios() {
                       </button>
                       <button
                         onClick={() => toggleRoleStatus(role)}
-                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${isDisabled
-                          ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
-                          : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
-                          }`}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${
+                          isDisabled
+                            ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
+                            : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
+                        }`}
                       >
                         <span className="material-symbols-outlined text-sm">
                           {isDisabled ? "lock_open" : "lock"}
@@ -1053,12 +1156,13 @@ export default function Usuarios() {
                     <button
                       key={s}
                       onClick={() => setEditRole({ ...editRole, estado: s })}
-                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${(editRole.estado || "Activo") === s
-                        ? s === "Activo"
-                          ? "bg-green-800 text-white"
-                          : "bg-rose-600 text-white"
-                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                        }`}
+                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${
+                        (editRole.estado || "Activo") === s
+                          ? s === "Activo"
+                            ? "bg-green-800 text-white"
+                            : "bg-rose-600 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      }`}
                     >
                       {s}
                     </button>
