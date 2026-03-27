@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 
 export default function SideBar({ isOpen, setIsOpen }) {
-  const { logout, role, user } = useAuth();
+  const { logout, role, user, photoURL } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -172,10 +172,14 @@ export default function SideBar({ isOpen, setIsOpen }) {
               }`
             }
           >
-            <div className="w-8 h-8 rounded-full bg-green-800 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-green-200 text-base">
-                person
-              </span>
+            <div className="w-8 h-8 rounded-full bg-green-800 flex items-center justify-center shrink-0 overflow-hidden">
+              {photoURL ? (
+                <img src={photoURL} alt="Perfil" className="w-full h-full object-cover" />
+              ) : (
+                <span className="material-symbols-outlined text-green-200 text-base">
+                  person
+                </span>
+              )}
             </div>
             <div className="overflow-hidden">
               <p

@@ -202,28 +202,7 @@ export default function Dashboard() {
       transition={{ duration: 0.4, ease: "easeOut" }}
       className="bg-gray-50 text-gray-900 space-y-8"
     >
-      <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8 -mt-6 md:-mt-10 pt-4 pb-4">
-        <div className="relative w-full max-w-md mt-2 md:mt-0">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-            search
-          </span>
-          <input
-            className="w-full bg-slate-100 border-none rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-green-700 outline-none"
-            placeholder="Buscar por nombre o SKU..."
-            type="text"
-          />
-        </div>
-        <div className="flex items-center ml-6 shrink-0">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs font-bold text-gray-900 uppercase">
-              {userName || "Comisariato Pro"}
-            </p>
-            <p className="text-[10px] text-slate-500 capitalize">
-              {authRole || "Region Central"}
-            </p>
-          </div>
-        </div>
-      </header>
+
 
       <section className="pt-2 md:pt-3 mb-10">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

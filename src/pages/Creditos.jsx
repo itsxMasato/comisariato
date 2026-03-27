@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
+// --- Constantes de Respaldo ---
 const INITIAL_CREDITS = [
   {
     id: 1,
@@ -15,51 +16,6 @@ const INITIAL_CREDITS = [
     pagadas: 4,
     plazo: "Mensual",
     fechaInicio: "2025-11-01",
-    descripcion: "Compra de electrodomesticos",
-    status: "Activo",
-    statusClass: "bg-green-100 text-green-800",
-    barClass: "bg-green-700",
-    historialPagos: [
-      { fecha: "2025-12-01", monto: 100, cuota: 1 },
-      { fecha: "2026-01-01", monto: 100, cuota: 2 },
-      { fecha: "2026-02-01", monto: 100, cuota: 3 },
-      { fecha: "2026-03-01", monto: 100, cuota: 4 },
-    ],
-  },
-  {
-    id: 2,
-    employee: "Elena Soriano",
-    role: "Empaque",
-    code: "#CR-8710",
-    montoTotal: 450,
-    cuotas: 6,
-    pagadas: 6,
-    plazo: "Mensual",
-    fechaInicio: "2025-09-01",
-    descripcion: "Utiles escolares",
-    status: "Pagado",
-    statusClass: "bg-slate-100 text-slate-600",
-    barClass: "bg-slate-500",
-    historialPagos: [
-      { fecha: "2025-10-01", monto: 75, cuota: 1 },
-      { fecha: "2025-11-01", monto: 75, cuota: 2 },
-      { fecha: "2025-12-01", monto: 75, cuota: 3 },
-      { fecha: "2026-01-01", monto: 75, cuota: 4 },
-      { fecha: "2026-02-01", monto: 75, cuota: 5 },
-      { fecha: "2026-03-01", monto: 75, cuota: 6 },
-    ],
-  },
-  {
-    id: 3,
-    employee: "Samuel Vargas",
-    role: "Riego",
-    code: "#CR-8815",
-    montoTotal: 2500,
-    cuotas: 24,
-    pagadas: 1,
-    plazo: "Quincenal",
-    fechaInicio: "2026-02-15",
-    descripcion: "Reparacion de vivienda",
     status: "Activo",
     statusClass: "bg-green-100 text-green-800",
     barClass: "bg-green-700",
@@ -67,27 +23,15 @@ const INITIAL_CREDITS = [
   },
 ];
 
+// --- Helpers de Cálculo ---
 const calcCuota = (monto, cuotas) => (cuotas > 0 ? monto / cuotas : 0);
 const calcSaldo = (monto, pagadas, cuotas) =>
   monto - pagadas * calcCuota(monto, cuotas);
 const fmt = (n) =>
   `L ${Number(n).toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const statusConfig = (pagadas, cuotas) => {
-  if (pagadas >= cuotas)
-    return {
-      label: "Pagado",
-      cls: "bg-slate-100 text-slate-600",
-      bar: "bg-slate-500",
-    };
-  return {
-    label: "Activo",
-    cls: "bg-green-100 text-green-800",
-    bar: "bg-green-700",
-  };
-};
 
 export default function Creditos() {
-  const { userName, role: authRole } = useAuth();
+  const { userName } = useAuth();
   const [creditsData, setCreditsData] = useState([]);
   const [empData, setEmpData] = useState([]);
   const [cuotasData, setCuotasData] = useState([]);
@@ -98,526 +42,445 @@ export default function Creditos() {
   const [filtroEstado, setFiltroEstado] = useState("Todos");
 
   useEffect(() => {
-    const unsubC = onSnapshot(collection(db, "creditos"), (s) => setCreditsData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubE = onSnapshot(collection(db, "empleados"), (s) => setEmpData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubQ = onSnapshot(collection(db, "cuotas"), (s) => setCuotasData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { unsubC(); unsubE(); unsubQ(); };
+    const unsubC = onSnapshot(collection(db, "creditos"), (s) =>
+      setCreditsData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubE = onSnapshot(collection(db, "empleados"), (s) =>
+      setEmpData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubQ = onSnapshot(collection(db, "cuotas"), (s) =>
+      setCuotasData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    return () => {
+      unsubC();
+      unsubE();
+      unsubQ();
+    };
   }, []);
 
-  const credits = creditsData.length > 0 ? creditsData.map(c => {
-    const emp = empData.find(e => e.empleadoId === c.empleadoId || e.id === c.empleadoId) || {};
-    const pagos = cuotasData.filter(q => q.empleadoId === c.empleadoId);
+  const credits = useMemo(() => {
+    if (creditsData.length === 0) return INITIAL_CREDITS;
+    return creditsData.map((c) => {
+      const emp =
+        empData.find(
+          (e) => e.empleadoId === c.empleadoId || e.id === c.empleadoId,
+        ) || {};
+      const pagos = cuotasData.filter(
+        (q) => q.creditoId === c.creditoId || q.empleadoId === c.empleadoId,
+      );
 
-    return {
-      id: c.id,
-      creditoId: c.creditoId,
-      employee: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "No vinculado",
-      role: emp.departamento || "N/A",
-      code: c.creditoId || c.productoId || `#CR-${c.id.substring(0, 4)}`,
-      montoTotal: c.totalCredito || 0,
-      cuotas: c.plazoMeses || 1,
-      pagadas: pagos.length,
-      plazo: "Mensual",
-      fechaInicio: c.fechaInicio && typeof c.fechaInicio.toDate === 'function' ? c.fechaInicio.toDate().toLocaleDateString() : c.fechaInicio || "",
-      descripcion: `Crédito autorizado por ${c.empleadoAutoriza || "Admin"}`,
-      status: c.estado || "Activo",
-      statusClass: c.estado === "Activo" ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-600",
-      barClass: c.estado === "Activo" ? "bg-green-700" : "bg-slate-500",
-      historialPagos: pagos.map((p, i) => ({
-        fecha: p.fechaRegistro && typeof p.fechaRegistro.toDate === 'function' ? p.fechaRegistro.toDate().toLocaleDateString() : p.fechaRegistro || "",
-        monto: p.monto || 0,
-        cuota: i + 1
-      }))
-    };
-  }) : INITIAL_CREDITS;
+      return {
+        ...c,
+        id: c.id,
+        employee: emp.nombres
+          ? `${emp.nombres} ${emp.apellidos}`
+          : "No vinculado",
+        role: emp.departamento || "N/A",
+        code: c.creditoId || `#CR-${c.id.substring(0, 4)}`,
+        montoTotal: c.totalCredito || 0,
+        cuotas: c.plazoMeses || 1,
+        pagadas: pagos.length,
+        plazo: "Mensual",
+        fechaInicio: c.fechaInicio?.toDate
+          ? c.fechaInicio.toDate().toLocaleDateString()
+          : c.fechaInicio || "",
+        status: c.estado || "Activo",
+        statusClass:
+          c.estado === "Activo"
+            ? "bg-green-100 text-green-800"
+            : "bg-slate-100 text-slate-600",
+        barClass: c.estado === "Activo" ? "bg-green-700" : "bg-slate-500",
+        historialPagos: pagos.map((p, i) => ({
+          fecha: p.fechaRegistro?.toDate
+            ? p.fechaRegistro.toDate().toLocaleDateString()
+            : p.fechaRegistro || "",
+          monto: p.monto || 0,
+          cuota: i + 1,
+        })),
+      };
+    });
+  }, [creditsData, empData, cuotasData]);
 
-  const creditosFiltrados = credits.filter((c) => {
-    const matchSearch =
-      c.employee.toLowerCase().includes(search.toLowerCase()) ||
-      c.code.toLowerCase().includes(search.toLowerCase());
-    const matchEstado = filtroEstado === "Todos" || c.status === filtroEstado;
-    return matchSearch && matchEstado;
-  });
+  const creditosFiltrados = useMemo(() => {
+    return credits.filter((c) => {
+      const matchSearch =
+        c.employee.toLowerCase().includes(search.toLowerCase()) ||
+        c.code.toLowerCase().includes(search.toLowerCase());
+      const matchEstado = filtroEstado === "Todos" || c.status === filtroEstado;
+      return matchSearch && matchEstado;
+    });
+  }, [search, filtroEstado, credits]);
 
-  const totalCartera = credits
-    .filter((c) => c.status === "Activo")
-    .reduce((s, c) => s + calcSaldo(c.montoTotal, c.pagadas, c.cuotas), 0);
-  const totalRecaudado = credits.reduce(
-    (s, c) => s + c.pagadas * calcCuota(c.montoTotal, c.cuotas),
-    0,
+  // Cálculos de Cartera
+  const totalCartera = useMemo(
+    () =>
+      credits
+        .filter((c) => c.status === "Activo")
+        .reduce((s, c) => s + calcSaldo(c.montoTotal, c.pagadas, c.cuotas), 0),
+    [credits],
+  );
+  const totalRecaudado = useMemo(
+    () =>
+      credits.reduce(
+        (s, c) => s + c.pagadas * calcCuota(c.montoTotal, c.cuotas),
+        0,
+      ),
+    [credits],
   );
 
-  const handleViewDetail = (item) => {
-    setSelected(item);
-    setIsDetailOpen(true);
-  };
-
+  // --- FUNCIÓN DE REPORTE PROFESIONAL ---
   const handleExportReport = () => {
-    const sanitize = (t) =>
-      String(t)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\x20-\x7E]/g, "?");
-    const esc = (t) =>
-      sanitize(t)
-        .replace(/\\/g, "\\\\")
-        .replace(/\(/g, "\\(")
-        .replace(/\)/g, "\\)");
-    const lines = [
-      "Reporte de Creditos - Comisariato Pro",
-      `Fecha: ${new Date().toLocaleDateString("es-HN")}`,
-      "",
-      "Codigo | Empleado | Monto | Saldo Pendiente | Cuotas | Estado",
-      "---------------------------------------------------------------------",
-      ...credits.map(
-        (c) =>
-          `${c.code} | ${c.employee} | ${fmt(c.montoTotal)} | ${fmt(calcSaldo(c.montoTotal, c.pagadas, c.cuotas))} | ${c.pagadas}/${c.cuotas} | ${c.status}`,
-      ),
-    ];
-    const content = lines
-      .map((l, i) => (i === 0 ? `(${esc(l)}) Tj` : `0 -18 Td\n(${esc(l)}) Tj`))
-      .join("\n");
-    const stream = `BT\n/F1 11 Tf\n50 800 Td\n${content}\nET`;
-    const objs = [
-      "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-      "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-      "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
-      "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-      `5 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
-    ];
-    let pdf = "%PDF-1.4\n";
-    const offsets = [0];
-    objs.forEach((o) => {
-      offsets.push(pdf.length);
-      pdf += o;
-    });
-    const xref = pdf.length;
-    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
-    for (let i = 1; i < offsets.length; i++)
-      pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
-    pdf += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
-    const url = URL.createObjectURL(
-      new Blob([pdf], { type: "application/pdf" }),
-    );
-    const link = Object.assign(document.createElement("a"), {
-      href: url,
-      download: "reporte_creditos.pdf",
-    });
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
+    const dateStr = new Date().toLocaleDateString("es-HN");
 
-  const liveCredit = selected
-    ? credits.find((c) => c.id === selected.id) || selected
-    : null;
+    const reportHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8"/>
+        <title>Reporte de Créditos - Comisariato Pro</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=Inter:wght@400;600&display=swap" rel="stylesheet"/>
+        <style>
+          @media print { @page { size: A4; margin: 0; } body { background-color: white !important; -webkit-print-color-adjust: exact; } .no-print { display: none !important; } }
+          .a4-canvas { width: 210mm; min-height: 297mm; background-color: white; margin: 0 auto; padding: 3rem; font-family: 'Inter', sans-serif; }
+          .font-headline { font-family: 'Manrope', sans-serif; }
+        </style>
+      </head>
+      <body class="bg-gray-100">
+        <div class="a4-canvas shadow-2xl flex flex-col mx-auto my-8">
+          <header class="w-full pb-4 border-b-2 border-[#00450d] flex justify-between items-end mb-10">
+            <div class="flex flex-col">
+              <span class="text-2xl font-extrabold tracking-tighter text-[#00450d] font-headline uppercase">COMISARIATO PRO</span>
+              <span class="font-headline uppercase tracking-widest text-[11px] font-bold text-[#00450d] mt-1">REPORTE GENERAL DE CRÉDITOS - ${dateStr}</span>
+            </div>
+            <div class="text-right text-[#00450d] font-headline font-bold text-[10px] tracking-widest uppercase">Finanzas e Inventario</div>
+          </header>
+
+          <section class="grid grid-cols-2 gap-6 mb-10">
+            <div class="bg-[#f2f4f2] p-5 border-l-4 border-[#00450d]">
+              <p class="font-headline text-[9px] uppercase tracking-wider text-gray-500 mb-1">Cartera Activa Pendiente</p>
+              <p class="text-xl font-bold text-[#00450d] font-headline">${fmt(totalCartera)}</p>
+            </div>
+            <div class="bg-[#f2f4f2] p-5 border-l-4 border-[#523327]">
+              <p class="font-headline text-[9px] uppercase tracking-wider text-gray-500 mb-1">Total Recaudado Histórico</p>
+              <p class="text-xl font-bold text-[#523327] font-headline">${fmt(totalRecaudado)}</p>
+            </div>
+          </section>
+
+          <section class="flex-grow">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-[#e1e3e1]">
+                <tr>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-[#00450d]">Código</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-[#00450d]">Empleado</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-[#00450d] text-right">Monto</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-[#00450d] text-right">Saldo</th>
+                  <th class="px-4 py-3 font-headline font-bold text-[10px] uppercase tracking-wider text-[#00450d] text-center">Estado</th>
+                </tr>
+              </thead>
+              <tbody class="text-[11px]">
+                ${creditosFiltrados
+                  .map(
+                    (c) => `
+                  <tr class="border-b border-gray-100">
+                    <td class="px-4 py-3 font-mono text-gray-400">${c.code}</td>
+                    <td class="px-4 py-3 font-bold text-gray-800">${c.employee}</td>
+                    <td class="px-4 py-3 text-right">${fmt(c.montoTotal)}</td>
+                    <td class="px-4 py-3 font-bold text-right text-[#00450d]">${fmt(calcSaldo(c.montoTotal, c.pagadas, c.cuotas))}</td>
+                    <td class="px-4 py-3 text-center uppercase font-black text-[9px]">${c.status}</td>
+                  </tr>
+                `,
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </section>
+
+          <footer class="mt-auto border-t border-gray-100 pt-12">
+            <div class="grid grid-cols-2 gap-12 w-full px-4 mb-8">
+              <div class="flex flex-col items-center">
+                <div class="w-full border-b border-gray-400 mb-2"></div>
+                <p class="font-headline text-[9px] uppercase tracking-wider font-bold text-[#00450d]">Revisión Contable</p>
+              </div>
+              <div class="flex flex-col items-center">
+                <div class="w-full border-b border-gray-400 mb-2"></div>
+                <p class="font-headline text-[9px] uppercase tracking-wider font-bold text-[#00450d]">Firma Autorizada</p>
+              </div>
+            </div>
+          </footer>
+        </div>
+        <div class="fixed bottom-8 right-8 no-print">
+          <button onclick="window.print()" class="bg-[#00450d] text-white px-8 py-3 rounded-full font-bold shadow-xl active:scale-95 transition-all">Imprimir Reporte</button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const printWin = window.open("", "_blank");
+    printWin.document.write(reportHtml);
+    printWin.document.close();
+  };
 
   return (
     <>
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
         className="space-y-6"
       >
-        {/* ── TOPBAR ── */}
-        <header className="sticky top-0 -mx-6 md:-mx-10 px-6 md:px-10 h-16 flex justify-between items-center z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 mb-8 -mt-6 md:-mt-10 pt-4 pb-4">
-          <div className="flex items-center gap-4 w-full justify-between">
-            <div className="relative w-full max-w-md mt-2 md:mt-0">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+        {/* HEADER */}
+        <section className="pt-2 md:pt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight font-headline">
+              Créditos
+            </h2>
+            <p className="text-slate-500 font-medium text-sm">
+              Seguimiento de saldos y recaudación por planilla.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative w-full sm:max-w-xs">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
                 search
               </span>
               <input
-                type="text"
+                className="w-full bg-slate-100 border-none rounded-xl pl-10 pr-4 py-3 text-sm focus:ring-2 focus:ring-green-700 outline-none"
+                placeholder="Buscar empleado..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nombre o codigo..."
-                className="w-full bg-slate-100 border-none rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-green-700 outline-none"
               />
             </div>
-            <div className="flex items-center gap-4 ml-6 shrink-0">
-              <button className="relative text-slate-600 hover:text-green-900 transition-all">
-                <span className="material-symbols-outlined">notifications</span>
-                <span className="absolute top-0 right-0 w-2 h-2 bg-red-600 rounded-full border-2 border-white" />
-              </button>
-              <button className="text-slate-600 hover:text-green-900 transition-all">
-                <span className="material-symbols-outlined">settings</span>
-              </button>
-              <div className="h-8 w-px bg-slate-200 hidden sm:block" />
-              <div className="text-right hidden sm:block">
-                <p className="text-xs font-bold text-gray-900 uppercase">
-                  {userName || "Comisariato Pro"}
-                </p>
-                <p className="text-[10px] text-slate-500 capitalize">
-                  {authRole || "Region Central"}
-                </p>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* ── PAGE HEADER ── */}
-        <section className="pt-2 md:pt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2
-              className="text-3xl font-black text-slate-900 tracking-tight"
-              style={{ fontFamily: "Manrope, sans-serif" }}
+            <button
+              onClick={handleExportReport}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-black transition-colors"
             >
-              Creditos
-            </h2>
-            <p className="text-slate-500 font-medium">
-              Gestion de creditos automaticos y seguimiento de pagos al
-              personal.
-            </p>
+              <span className="material-symbols-outlined text-[18px]">
+                download
+              </span>{" "}
+              Exportar
+            </button>
           </div>
-          <button
-            onClick={handleExportReport}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-100 px-5 py-3 text-sm font-bold text-green-800 hover:bg-slate-200 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">
-              download
-            </span>
-            Exportar Reporte
-          </button>
         </section>
 
-        {/* ── STATS ── */}
+        {/* CARDS */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <article className="rounded-2xl border border-green-800/20 border-l-4 border-l-green-800 bg-white p-5 shadow-sm">
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+          <article className="rounded-2xl border border-green-800/10 border-l-4 border-l-green-800 bg-white p-5 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Cartera Activa
             </p>
-            <h3 className="mt-1 text-3xl font-black text-slate-900">
+            <h3 className="mt-1 text-2xl font-black text-slate-900">
               {fmt(totalCartera)}
             </h3>
-            <p className="mt-1 text-xs font-bold text-green-700">
-              Saldo pendiente total
-            </p>
           </article>
-          <article className="rounded-2xl border border-amber-800/20 border-l-4 border-l-amber-800 bg-white p-5 shadow-sm">
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-              Pagos Recaudados
+          <article className="rounded-2xl border border-slate-200 border-l-4 border-l-slate-800 bg-white p-5 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Total Recaudado
             </p>
-            <h3 className="mt-1 text-3xl font-black text-slate-900">
+            <h3 className="mt-1 text-2xl font-black text-slate-900">
               {fmt(totalRecaudado)}
             </h3>
-            <p className="mt-1 text-xs font-bold text-slate-500">
-              Acumulado historico
-            </p>
           </article>
-          <article className="rounded-2xl border border-sky-700/20 border-l-4 border-l-sky-700 bg-white p-5 shadow-sm">
-            <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-              Regla de Credito
+          <article className="rounded-2xl border border-sky-800/10 border-l-4 border-l-sky-800 bg-white p-5 shadow-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Tasa Aplicada
             </p>
-            <h3 className="mt-1 text-3xl font-black text-slate-900">15%</h3>
-            <p className="mt-1 text-xs font-bold text-sky-700">
-              Del salario mensual por empleado
-            </p>
+            <h3 className="mt-1 text-2xl font-black text-slate-900">
+              15%{" "}
+              <span className="text-xs text-slate-400 font-bold tracking-normal italic">
+                Mensual
+              </span>
+            </h3>
           </article>
         </div>
 
-        {/* ── MAIN GRID ── */}
-        <section className="space-y-6">
-          <div className="space-y-6">
-            <article className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 md:px-6 gap-3 flex-wrap">
-                <h3
-                  className="text-2xl font-black text-slate-900"
-                  style={{ fontFamily: "Manrope, sans-serif" }}
+        {/* TABLA */}
+        <article className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+            <h3 className="font-black text-slate-900 uppercase tracking-tighter">
+              Historial de Créditos
+            </h3>
+            <div className="flex gap-1">
+              {["Todos", "Activo", "Pagado"].map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setFiltroEstado(e)}
+                  className={`rounded-full px-4 py-1.5 text-[10px] font-black transition-all ${filtroEstado === e ? "bg-green-800 text-white shadow-lg shadow-green-900/20" : "bg-slate-50 text-slate-400 hover:bg-slate-100"}`}
                 >
-                  Historial de Creditos
-                </h3>
-                <div className="flex gap-2 flex-wrap">
-                  {["Todos", "Activo", "Pagado"].map((e) => (
-                    <button
-                      key={e}
-                      onClick={() => setFiltroEstado(e)}
-                      className={`rounded-full px-3 py-1 text-[10px] font-black transition-colors ${
-                        filtroEstado === e
-                          ? "bg-green-800 text-white"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      {e.toUpperCase()} (
-                      {e === "Todos"
-                        ? credits.length
-                        : credits.filter((c) => c.status === e).length}
-                      )
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px]">
-                  <thead className="bg-slate-50 border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">
-                        Empleado
-                      </th>
-                      <th className="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">
-                        Monto / Cuota
-                      </th>
-                      <th className="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">
-                        Saldo Pendiente
-                      </th>
-                      <th className="px-6 py-3 text-left text-[10px] font-black uppercase tracking-widest text-slate-500">
-                        Estado
-                      </th>
-                      <th className="px-6 py-3 text-right text-[10px] font-black uppercase tracking-widest text-slate-500">
-                        Accion
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {creditosFiltrados.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-6 py-10 text-center text-slate-400 text-sm"
-                        >
-                          Sin resultados
-                        </td>
-                      </tr>
-                    )}
-                    {creditosFiltrados.map((item) => {
-                      const saldo = calcSaldo(
-                        item.montoTotal,
-                        item.pagadas,
-                        item.cuotas,
-                      );
-                      const pct = Math.round(
-                        (item.pagadas / item.cuotas) * 100,
-                      );
-                      return (
-                        <tr
-                          key={item.id}
-                          className="border-b border-slate-50 hover:bg-slate-50/70 transition-colors"
-                        >
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`h-8 w-1.5 rounded-full ${item.barClass}`}
-                              />
-                              <div>
-                                <p className="text-sm font-bold text-slate-900">
-                                  {item.employee}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                  {item.role} — {item.code}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-black text-slate-900">
-                              {fmt(item.montoTotal)}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                              {item.pagadas}/{item.cuotas} cuotas —{" "}
-                              {fmt(calcCuota(item.montoTotal, item.cuotas))} c/u
-                            </p>
-                            <div className="mt-1.5 h-1.5 w-24 rounded-full bg-slate-100 overflow-hidden">
-                              <div
-                                className={`h-full rounded-full ${item.barClass}`}
-                                style={{ width: `${pct}%` }}
-                              />
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p
-                              className={`text-sm font-black ${saldo > 0 ? "text-slate-900" : "text-green-700"}`}
-                            >
-                              {fmt(saldo)}
-                            </p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${item.statusClass}`}
-                            >
-                              {item.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button
-                              onClick={() => handleViewDetail(item)}
-                              className="text-slate-500 hover:text-green-800 transition-colors"
-                              title="Ver detalle"
-                            >
-                              <span className="material-symbols-outlined text-[20px]">
-                                visibility
-                              </span>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </article>
+                  {e.toUpperCase()}
+                </button>
+              ))}
+            </div>
           </div>
-        </section>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50/50 border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Empleado
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Monto / Plan
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Saldo
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Estado
+                  </th>
+                  <th className="px-6 py-4 text-right"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {creditosFiltrados.map((item) => {
+                  const saldo = calcSaldo(
+                    item.montoTotal,
+                    item.pagadas,
+                    item.cuotas,
+                  );
+                  const pct = Math.round((item.pagadas / item.cuotas) * 100);
+                  return (
+                    <tr
+                      key={item.id}
+                      className="group hover:bg-slate-50/50 transition-all"
+                    >
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-slate-900 text-sm">
+                          {item.employee}
+                        </p>
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                          {item.code} — {item.role}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="font-bold text-slate-900 text-sm">
+                          {fmt(item.montoTotal)}
+                        </p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase italic">
+                          {item.pagadas}/{item.cuotas} Cuotas
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p
+                          className={`text-sm font-black ${saldo > 0 ? "text-slate-900" : "text-green-700"}`}
+                        >
+                          {fmt(saldo)}
+                        </p>
+                        <div className="mt-1.5 h-1 w-20 rounded-full bg-slate-100 overflow-hidden">
+                          <div
+                            className={`h-full ${item.barClass}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${item.statusClass}`}
+                        >
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => {
+                            setSelected(item);
+                            setIsDetailOpen(true);
+                          }}
+                          className="p-2 hover:bg-slate-100 rounded-xl transition-all"
+                        >
+                          <span className="material-symbols-outlined text-slate-400 group-hover:text-green-800">
+                            visibility
+                          </span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </article>
       </motion.div>
 
-      {/* ── MODAL DETALLE ── */}
-      {isDetailOpen && liveCredit && (
-        <div className="fixed inset-0 bg-green-950/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="p-8 bg-green-900 text-white flex justify-between items-start shrink-0">
-              <div>
-                <h3 className="text-2xl font-black">Detalle de Credito</h3>
-                <p className="text-green-200 text-[10px] font-bold uppercase tracking-widest">
-                  {liveCredit.code}
-                </p>
-              </div>
+      {/* MODAL DETALLE (Mantenido igual pero con padding mejorado) */}
+      {isDetailOpen && selected && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.95 }}
+            animate={{ scale: 1 }}
+            className="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+          >
+            <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-black uppercase tracking-widest text-sm">
+                Detalle de Crédito
+              </h3>
               <button
-                type="button"
                 onClick={() => setIsDetailOpen(false)}
-                className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition-all"
+                className="material-symbols-outlined hover:rotate-90 transition-all"
               >
-                <span className="material-symbols-outlined">close</span>
+                close
               </button>
             </div>
-
-            <div className="overflow-y-auto p-8 space-y-6">
-              {/* Info grid */}
+            <div className="p-8 overflow-y-auto space-y-6">
               <div className="grid grid-cols-2 gap-4">
-                {[
-                  ["Empleado", liveCredit.employee],
-                  ["Area", liveCredit.role],
-                  ["Monto Total", fmt(liveCredit.montoTotal)],
-                  [
-                    "Cuota",
-                    fmt(calcCuota(liveCredit.montoTotal, liveCredit.cuotas)),
-                  ],
-                  ["Plazo", liveCredit.plazo],
-                  ["Inicio", liveCredit.fechaInicio],
-                ].map(([lbl, val]) => (
-                  <div key={lbl}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">
-                      {lbl}
-                    </label>
-                    <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-700">
-                      {val}
-                    </div>
-                  </div>
-                ))}
-                <div className="col-span-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-1 block">
-                    Descripcion
-                  </label>
-                  <div className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-2.5 text-sm font-bold text-slate-700">
-                    {liveCredit.descripcion || "—"}
-                  </div>
-                </div>
-              </div>
-
-              {/* Saldo + progreso */}
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-slate-600 font-bold">
-                    Saldo pendiente
-                  </span>
-                  <span
-                    className={`text-2xl font-black ${calcSaldo(liveCredit.montoTotal, liveCredit.pagadas, liveCredit.cuotas) > 0 ? "text-slate-900" : "text-green-700"}`}
-                  >
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
+                    Saldo Actual
+                  </p>
+                  <p className="text-xl font-black text-slate-900">
                     {fmt(
                       calcSaldo(
-                        liveCredit.montoTotal,
-                        liveCredit.pagadas,
-                        liveCredit.cuotas,
+                        selected.montoTotal,
+                        selected.pagadas,
+                        selected.cuotas,
                       ),
                     )}
-                  </span>
-                </div>
-                <div>
-                  <div className="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>{liveCredit.pagadas} pagadas</span>
-                    <span>
-                      {liveCredit.cuotas - liveCredit.pagadas} pendientes
-                    </span>
-                    <span>
-                      {Math.round(
-                        (liveCredit.pagadas / liveCredit.cuotas) * 100,
-                      )}
-                      %
-                    </span>
-                  </div>
-                  <div className="h-2.5 rounded-full bg-slate-200 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${liveCredit.barClass}`}
-                      style={{
-                        width: `${Math.round((liveCredit.pagadas / liveCredit.cuotas) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <span
-                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${liveCredit.statusClass}`}
-                >
-                  {liveCredit.status}
-                </span>
-              </div>
-
-              {/* Historial de pagos */}
-              <div>
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-3">
-                  Historial de Pagos
-                </h4>
-                {liveCredit.historialPagos.length === 0 ? (
-                  <p className="text-sm text-slate-400 italic">
-                    Sin pagos registrados aun.
                   </p>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-100">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
-                            Cuota #
-                          </th>
-                          <th className="px-4 py-2 text-left text-[10px] font-black uppercase tracking-wider text-slate-400">
-                            Fecha
-                          </th>
-                          <th className="px-4 py-2 text-right text-[10px] font-black uppercase tracking-wider text-slate-400">
-                            Monto
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {liveCredit.historialPagos.map((p, i) => (
-                          <tr key={i} className="border-t border-slate-100">
-                            <td className="px-4 py-2 font-bold text-slate-700">
-                              Cuota {p.cuota}/{liveCredit.cuotas}
-                            </td>
-                            <td className="px-4 py-2 text-slate-500">
-                              {p.fecha}
-                            </td>
-                            <td className="px-4 py-2 text-right font-black text-green-700">
-                              {fmt(p.monto)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase mb-1">
+                    Cuota Mensual
+                  </p>
+                  <p className="text-xl font-black text-green-800">
+                    {fmt(calcCuota(selected.montoTotal, selected.cuotas))}
+                  </p>
+                </div>
               </div>
-
-              {/* Botones */}
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsDetailOpen(false)}
-                  className="w-full bg-slate-100 text-slate-700 py-3.5 px-8 rounded-2xl font-black hover:bg-slate-200 transition-all active:scale-95 uppercase tracking-widest text-sm"
-                >
-                  Cerrar
-                </button>
+              <div>
+                <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">
+                  Historial de Pagos Recibidos
+                </h4>
+                <div className="space-y-2">
+                  {selected.historialPagos.map((p, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100"
+                    >
+                      <span className="text-xs font-bold text-slate-600">
+                        Cuota #{p.cuota}
+                      </span>
+                      <span className="text-xs font-medium text-slate-400">
+                        {p.fecha}
+                      </span>
+                      <span className="text-xs font-black text-green-700">
+                        {fmt(p.monto)}
+                      </span>
+                    </div>
+                  ))}
+                  {selected.historialPagos.length === 0 && (
+                    <p className="text-center py-4 text-xs italic text-slate-400">
+                      No se registran pagos aún.
+                    </p>
+                  )}
+                </div>
               </div>
+              <button
+                onClick={() => setIsDetailOpen(false)}
+                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+              >
+                Cerrar Detalle
+              </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </>
