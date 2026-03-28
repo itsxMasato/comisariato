@@ -251,17 +251,21 @@ export default function Usuarios() {
   const activeRoles = roles.filter((r) => r.estado === "Activo");
 
   const handleExportReport = (roleReport = "Todos los Roles") => {
-    const listToExport = roleReport === "Todos los Roles"
-      ? users
-      : users.filter((u) => u.role === roleReport);
+    const listToExport =
+      roleReport === "Todos los Roles"
+        ? users
+        : users.filter((u) => u.role === roleReport);
 
-    const reportLabel = roleReport === "Todos los Roles"
-      ? "GLOBAL DE USUARIOS"
-      : `USUARIOS - ROL: ${roleReport.toUpperCase()}`;
+    const reportLabel =
+      roleReport === "Todos los Roles"
+        ? "GLOBAL DE USUARIOS"
+        : `USUARIOS - ROL: ${roleReport.toUpperCase()}`;
 
     const dateStr = new Date().toLocaleDateString("es-HN");
     const totalItems = listToExport.length;
-    const activosItems = listToExport.filter((u) => u.status === "Activo").length;
+    const activosItems = listToExport.filter(
+      (u) => u.status === "Activo",
+    ).length;
 
     const reportHtml = `
       <!DOCTYPE html>
@@ -550,7 +554,6 @@ export default function Usuarios() {
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
-          <span className="text-slate-300 cursor-not-allowed pb-1">Logs</span>
         </nav>
       </div>
 
@@ -575,16 +578,36 @@ export default function Usuarios() {
               </div>
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 <div className="relative group text-sm font-bold w-full sm:w-auto z-40 flex-1 sm:flex-none">
-                  <button className="w-full sm:w-auto bg-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-300 transition-all active:scale-95" title="Exportar Reporte">
-                    <span className="material-symbols-outlined text-lg">download</span>
+                  <button
+                    className="w-full sm:w-auto bg-slate-200 text-slate-700 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-300 hover:bg-slate-300 transition-all active:scale-95"
+                    title="Exportar Reporte"
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      download
+                    </span>
                     PDF
-                    <span className="material-symbols-outlined text-sm">expand_more</span>
+                    <span className="material-symbols-outlined text-sm">
+                      expand_more
+                    </span>
                   </button>
                   <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all flex flex-col p-2">
-                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest px-4 py-2 opacity-60">Seleccionar Rol</span>
-                    <button onClick={() => handleExportReport("Todos los Roles")} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Todos los Roles</button>
-                    {activeRoles.map(r => (
-                      <button key={r.id} onClick={() => handleExportReport(r.name)} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">{r.name}</button>
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest px-4 py-2 opacity-60">
+                      Seleccionar Rol
+                    </span>
+                    <button
+                      onClick={() => handleExportReport("Todos los Roles")}
+                      className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all"
+                    >
+                      Todos los Roles
+                    </button>
+                    {activeRoles.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => handleExportReport(r.name)}
+                        className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all"
+                      >
+                        {r.name}
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -592,7 +615,9 @@ export default function Usuarios() {
                   onClick={() => setIsPanelOpen(true)}
                   className="text-white px-6 py-3 flex-1 sm:flex-none rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg bg-green-800 hover:bg-green-900 transition-all active:scale-95"
                 >
-                  <span className="material-symbols-outlined text-lg">person_add</span>
+                  <span className="material-symbols-outlined text-lg">
+                    person_add
+                  </span>
                   <span>Nuevo Usuario</span>
                 </button>
               </div>

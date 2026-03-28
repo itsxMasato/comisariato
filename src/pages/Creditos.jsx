@@ -35,6 +35,7 @@ export default function Creditos() {
   const [creditsData, setCreditsData] = useState([]);
   const [empData, setEmpData] = useState([]);
   const [cuotasData, setCuotasData] = useState([]);
+  const [parametros, setParametros] = useState({ porcentajeInteres: 0 });
 
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -51,10 +52,14 @@ export default function Creditos() {
     const unsubQ = onSnapshot(collection(db, "cuotas"), (s) =>
       setCuotasData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
     );
+    const unsubP = onSnapshot(doc(db, "parametros", "general"), (s) => {
+      if (s.exists()) setParametros(s.data());
+    });
     return () => {
       unsubC();
       unsubE();
       unsubQ();
+      unsubP();
     };
   }, []);
 
@@ -285,7 +290,7 @@ export default function Creditos() {
               Tasa Aplicada
             </p>
             <h3 className="mt-1 text-2xl font-black text-slate-900">
-              15%{" "}
+              {parametros.porcentajeInteres}%{" "}
               <span className="text-xs text-slate-400 font-bold tracking-normal italic">
                 Mensual
               </span>

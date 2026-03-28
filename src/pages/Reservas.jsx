@@ -125,8 +125,10 @@ export default function Reservas() {
   const [empleadosById, setEmpleadosById] = useState({});
   const [usuariosById, setUsuariosById] = useState({});
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("Pendiente");
   const [selectedReserva, setSelectedReserva] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
   const [isRejecting, setIsRejecting] = useState(false);
   const [observacion, setObservacion] = useState("");
   const [loading, setLoading] = useState(true);
@@ -203,9 +205,13 @@ export default function Reservas() {
   }, [empleadosById, usuariosById]);
 
   const filteredReservas = useMemo(() => {
+    let list = reservas;
+    if (statusFilter !== "Todas") {
+      list = reservas.filter((r) => r.status === statusFilter);
+    }
     const term = search.trim().toLowerCase();
-    if (!term) return reservas;
-    return reservas.filter(
+    if (!term) return list;
+    return list.filter(
       (reserva) =>
         String(reserva.empleado || "")
           .toLowerCase()
@@ -214,7 +220,7 @@ export default function Reservas() {
           .toLowerCase()
           .includes(term),
     );
-  }, [reservas, search]);
+  }, [reservas, search, statusFilter]);
 
   const summary = useMemo(() => {
     const pendientes = reservas.filter((r) => r.status === "Pendiente").length;
@@ -326,8 +332,17 @@ export default function Reservas() {
     setObservacion("");
   };
 
-  const handleApprove = async () => {
+  const handleApprove = () => {
     if (!selectedReserva) return;
+    setConfirmAction({ type: "approve" });
+  };
+
+  const handleReject = () => {
+    if (!selectedReserva || !observacion.trim()) return;
+    setConfirmAction({ type: "reject" });
+  };
+
+  const executeApprove = async () => {
     try {
       await updateDoc(doc(db, "creditos", selectedReserva.firebaseId), {
         estado: "aprobado",
@@ -335,7 +350,6 @@ export default function Reservas() {
         updatedDate: serverTimestamp(),
       });
 
-      // Validacion de descuento de stock de la DB (productos)
       if (selectedReserva.items && selectedReserva.items.length > 0) {
         for (const item of selectedReserva.items) {
           const targetId = item.productoId || item.id;
@@ -356,8 +370,7 @@ export default function Reservas() {
     }
   };
 
-  const handleReject = async () => {
-    if (!selectedReserva || !observacion.trim()) return;
+  const executeReject = async () => {
     try {
       await updateDoc(doc(db, "creditos", selectedReserva.firebaseId), {
         estado: "rechazado",
@@ -525,14 +538,24 @@ export default function Reservas() {
 
               <div className="col-span-12 lg:col-span-8 space-y-8">
                 <article className="rounded-3xl bg-slate-100 p-8">
-                  <div className="mb-6 flex items-center justify-between">
-                    <h5
-                      className="text-lg font-bold text-slate-900"
-                      style={{ fontFamily: "Manrope, sans-serif" }}
-                    >
-                      Lista de Reservas
-                    </h5>
-                    <button className="text-xs font-bold text-green-800 hover:underline">
+                  <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <h5 className="text-lg font-bold text-slate-900 font-headline hidden sm:block">
+                        Lista de Reservas
+                      </h5>
+                      <div className="flex bg-slate-200/50 p-1 rounded-xl">
+                        {["Pendiente", "Aprobado", "Rechazado", "Todas"].map(s => (
+                          <button 
+                            key={s} 
+                            onClick={() => setStatusFilter(s)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter === s ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <button className="text-xs font-bold text-green-800 hover:underline hidden md:block">
                       {filteredReservas.length} registros
                     </button>
                   </div>
@@ -687,27 +710,29 @@ export default function Reservas() {
               {selectedReserva.status === "Pendiente" ? (
                 <>
                   {!isRejecting ? (
-                    <button
-                      onClick={() => setIsRejecting(true)}
-                      className="rounded-2xl bg-red-100 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-200"
-                    >
-                      Rechazar Pedido
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setIsRejecting(true)}
+                        className="rounded-2xl bg-red-100 px-4 py-3 text-sm font-bold text-red-700 hover:bg-red-200"
+                      >
+                        Rechazar Pedido
+                      </button>
+                      <button
+                        onClick={handleApprove}
+                        className="rounded-2xl bg-gradient-to-r from-green-900 to-green-700 px-4 py-3 text-sm font-bold text-white"
+                      >
+                        Aprobar Pedido
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={handleReject}
                       disabled={!observacion.trim()}
-                      className="rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+                      className="md:col-span-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
                     >
                       Confirmar Rechazo
                     </button>
                   )}
-                  <button
-                    onClick={handleApprove}
-                    className="rounded-2xl bg-gradient-to-r from-green-900 to-green-700 px-4 py-3 text-sm font-bold text-white"
-                  >
-                    Aprobar Pedido
-                  </button>
                 </>
               ) : (
                 <div className="md:col-span-2 flex items-center justify-center rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600">
@@ -716,6 +741,51 @@ export default function Reservas() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* MODAL MANTENIDO INTACTO (FIN) */}
+
+      {/* CONFIRMATION OVERLAY */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-[2px]">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl text-center border border-slate-100"
+          >
+            <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${confirmAction.type === 'approve' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              <span className="material-symbols-outlined text-3xl">
+                {confirmAction.type === 'approve' ? 'check_circle' : 'warning'}
+              </span>
+            </div>
+            <h4 className="mb-2 text-xl font-black text-slate-900" style={{ fontFamily: "Manrope, sans-serif" }}>
+              {confirmAction.type === 'approve' ? '¿Aprobar Reserva?' : '¿Rechazar Reserva?'}
+            </h4>
+            <p className="mb-8 text-sm text-slate-500 leading-relaxed font-medium">
+              {confirmAction.type === 'approve' 
+                ? 'El empleado recibirá los productos de esta lista y se aplicarán los descuentos automáticos correspondientes. Esta acción es definitiva.' 
+                : 'Esta acción de rechazo cancelará la reserva, devolverá el crédito del empleado a su estado original y se le notificará.'}
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (confirmAction.type === 'approve') executeApprove();
+                  else executeReject();
+                  setConfirmAction(null);
+                }}
+                className={`rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-lg transition-transform active:scale-95 ${confirmAction.type === 'approve' ? 'bg-green-700 hover:bg-green-800 shadow-green-900/20' : 'bg-red-600 hover:bg-red-700 shadow-red-900/20'}`}
+              >
+                Confirmar
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
     </>
