@@ -383,7 +383,26 @@ export default function Usuarios() {
     email: "",
     role: "",
   });
+  const [empSearch, setEmpSearch] = useState("");
+  const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
   const [newRole, setNewRole] = useState({ name: "", permissions: [] });
+
+  const assignableEmpleados = empleadosData.filter((emp) => {
+    const isActivo = emp.estado === "Activo" || emp.estado === "active";
+    const yaAsignado = usersData.some(
+      (u) => 
+        (u.empleadoId === emp.id && u.empleadoId) || 
+        (u.uid === emp.id) || 
+        (u.correo && u.correo === emp.correo)
+    );
+    return isActivo && !yaAsignado;
+  });
+
+  const filteredAssignables = assignableEmpleados.filter((emp) => {
+    const fullName = `${emp.nombres || ""} ${emp.apellidos || ""}`.toLowerCase();
+    const searchLow = empSearch.toLowerCase();
+    return fullName.includes(searchLow) || (emp.departamento || "").toLowerCase().includes(searchLow);
+  });
 
   // ── Usuarios ──────────────────────────────────────────────
   const toggleUserStatus = (id) => {
@@ -445,6 +464,7 @@ export default function Usuarios() {
       await setDoc(doc(db, "usuarios", cred.user.uid), {
         usuarioId: cred.user.uid,
         uid: cred.user.uid,
+        empleadoId: newUser.empleadoId,
         nombre: newUser.name,
         correo: newUser.email,
         rol: newUser.role || activeRoles[0]?.name,
@@ -454,6 +474,17 @@ export default function Usuarios() {
         fechaRegistro: Timestamp.now(),
         fechaActualizacion: Timestamp.now(),
       });
+      
+      // Intentar actualizar también al empleado con el uid de su nuevo usuario
+      if (newUser.empleadoId) {
+        try {
+          await updateDoc(doc(db, "empleados", newUser.empleadoId), {
+            uid: cred.user.uid,
+            usuarioId: cred.user.uid
+          });
+        } catch (e) { console.error("Error ligando user a empleado", e); }
+      }
+
       setIsPanelOpen(false);
       setNewUser({
         empleadoId: "",
@@ -461,6 +492,8 @@ export default function Usuarios() {
         email: "",
         role: activeRoles[0]?.name || "",
       });
+      setEmpSearch("");
+      setEmpDropdownOpen(false);
       showToast("Usuario vinculado exitosamente");
     } catch (error) {
       showToast(`Error: ${error.message}`);
@@ -947,39 +980,59 @@ export default function Usuarios() {
       >
         <div className="space-y-6 flex-1 overflow-y-auto">
           <Field label="Seleccione el Empleado">
-            <select
-              className="w-full bg-slate-50 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none cursor-pointer"
-              value={newUser.empleadoId}
-              onChange={(e) => {
-                const emp = empleadosData.find(
-                  (emp) => emp.id === e.target.value,
-                );
-                if (emp) {
-                  setNewUser({
-                    ...newUser,
-                    empleadoId: emp.id,
-                    name: `${emp.nombres || ""} ${emp.apellidos || ""}`.trim(),
-                    email: emp.correo || "",
-                  });
-                } else {
-                  setNewUser({
-                    ...newUser,
-                    empleadoId: "",
-                    name: "",
-                    email: "",
-                  });
-                }
-              }}
-            >
-              <option value="">-- Seleccionar --</option>
-              {empleadosData
-                .filter((e) => e.estado === "Activo" || e.estado === "active")
-                .map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.nombres} {emp.apellidos} - {emp.departamento}
-                  </option>
-                ))}
-            </select>
+            <div className="relative">
+              <input
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-green-700 outline-none"
+                placeholder="Escribe el nombre del empleado..."
+                value={newUser.empleadoId ? newUser.name : empSearch}
+                onChange={(e) => {
+                  setEmpSearch(e.target.value);
+                  setEmpDropdownOpen(true);
+                  if (newUser.empleadoId) {
+                    setNewUser({ ...newUser, empleadoId: "", name: "", email: "" });
+                  }
+                }}
+                onFocus={() => setEmpDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setEmpDropdownOpen(false), 200)}
+              />
+              <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                expand_more
+              </span>
+              
+              {empDropdownOpen && (
+                <div className="absolute z-50 mt-2 w-full max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl">
+                  {filteredAssignables.length === 0 ? (
+                    <div className="p-4 text-sm text-slate-500 font-medium text-center bg-slate-50">
+                      No hay empleados sin cuenta disponibles
+                    </div>
+                  ) : (
+                    filteredAssignables.map((emp) => (
+                      <div
+                        key={emp.id}
+                        className="p-3 hover:bg-green-50 cursor-pointer border-b border-slate-50 last:border-none transition-colors"
+                        onClick={() => {
+                          setNewUser({
+                            ...newUser,
+                            empleadoId: emp.id,
+                            name: `${emp.nombres || ""} ${emp.apellidos || ""}`.trim(),
+                            email: emp.correo || "",
+                          });
+                          setEmpSearch("");
+                          setEmpDropdownOpen(false);
+                        }}
+                      >
+                        <p className="text-sm font-bold text-slate-800 capitalize">
+                          {emp.nombres?.toLowerCase()} {emp.apellidos?.toLowerCase()}
+                        </p>
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                          {emp.departamento || "Sin Depto."}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </Field>
           {newUser.empleadoId && (
             <>

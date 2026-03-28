@@ -22,6 +22,7 @@ export default function DatosVariables() {
     porcentajeSueldo: 15,
     porcentajeInteres: 0,
     minimoAccesoCredito: 3,
+    minimoReservaCredito: 300,
   });
 
   const [departamentos, setDepartamentos] = useState([]);
@@ -40,6 +41,7 @@ export default function DatosVariables() {
             porcentajeSueldo: data.porcentajeSueldo || 15,
             porcentajeInteres: data.porcentajeInteres || 0,
             minimoAccesoCredito: data.minimoAccesoCredito || 3,
+            minimoReservaCredito: data.minimoReservaCredito !== undefined ? data.minimoReservaCredito : 300,
           });
         }
       } catch (error) {
@@ -301,6 +303,27 @@ export default function DatosVariables() {
                   <span className="text-slate-400 font-bold text-xs ml-1 whitespace-nowrap">
                     % fijo
                   </span>
+                </div>
+              </div>
+
+              {/* Monto Mínimo Reserva a Crédito */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block ml-1">
+                  Monto Mínimo (Reservas Crédito)
+                </label>
+                <div className="flex items-center bg-slate-50 rounded-2xl px-5 py-4 group focus-within:bg-white focus-within:ring-2 focus-within:ring-[#00450d]/20 transition-all">
+                  <span className="material-symbols-outlined text-[#00450d]/60 group-focus-within:text-[#00450d] mr-4">
+                    payments
+                  </span>
+                  <span className="text-slate-400 font-bold text-sm mr-2 select-none">L.</span>
+                  <input
+                    type="number"
+                    name="minimoReservaCredito"
+                    value={formData.minimoReservaCredito}
+                    onChange={handleChange}
+                    placeholder="Ej. 300"
+                    className="bg-transparent border-none p-0 text-slate-800 font-semibold focus:ring-0 w-full outline-none text-sm"
+                  />
                 </div>
               </div>
             </div>
