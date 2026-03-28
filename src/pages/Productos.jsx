@@ -54,6 +54,7 @@ export default function Productos() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [categorias, setCategorias] = useState([]);
+  const [parametros, setParametros] = useState({ porcentajeInteres: 15 });
 
   // Suscripción a Firebase - Productos
   useEffect(() => {
@@ -67,18 +68,26 @@ export default function Productos() {
 
   // Suscripción a Firebase - Categorías
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "categorias"), (snapshot) => {
+    const unsubCat = onSnapshot(collection(db, "categorias"), (snapshot) => {
       setCategorias(
         snapshot.docs.map((doc) => {
           const data = doc.data();
           return {
             id: doc.id,
-            nombre: data.categoria || data.descripcion || data.nombre || data.name || data.titulo || doc.id,
+            nombre: data.nombre || data.categoria || data.descripcion || doc.id
           };
-        }),
+        })
       );
     });
-    return () => unsub();
+    const unsubParam = onSnapshot(doc(db, "parametros", "general"), (docSnap) => {
+      if (docSnap.exists()) {
+        setParametros(docSnap.data());
+      }
+    });
+    return () => {
+      unsubCat();
+      unsubParam();
+    };
   }, []);
 
   // Lógica de Mapeo de Productos
@@ -261,7 +270,7 @@ export default function Productos() {
       productoId: formData.get("sku"),
       categoria: formData.get("category"),
       precioContado: priceVal,
-      precioCredito: priceVal * 1.15,
+      precioCredito: priceVal * (1 + (parametros.porcentajeInteres || 0) / 100),
       stock: stockVal,
       imagenUrl:
         formData.get("img_url") ||

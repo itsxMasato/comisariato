@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, doc } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -24,10 +24,18 @@ export default function Cuotas() {
   const { userName, role: authRole } = useAuth();
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("Todos los Departamentos");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [departamentos, setDepartamentos] = useState([]);
+  const [parametros, setParametros] = useState({ porcentajeSueldo: 15 });
 
   const [cuotasData, setCuotasData] = useState([]);
   const [empData, setEmpData] = useState([]);
   const [credData, setCredData] = useState([]);
+  const [usuariosData, setUsuariosData] = useState([]);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState(null);
 
   useEffect(() => {
     const unsubQ = onSnapshot(collection(db, "cuotas"), (s) =>
@@ -39,10 +47,25 @@ export default function Cuotas() {
     const unsubC = onSnapshot(collection(db, "creditos"), (s) =>
       setCredData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
     );
+    const unsubU = onSnapshot(collection(db, "usuarios"), (s) =>
+      setUsuariosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubD = onSnapshot(collection(db, "departamentos"), (s) =>
+      setDepartamentos(s.docs.map((d) => ({ id: d.id, nombre: d.data().nombre })))
+    );
+    const unsubP = onSnapshot(doc(db, "parametros", "general"), (docSnap) => {
+      if (docSnap.exists()) {
+        setParametros((prev) => ({ ...prev, ...docSnap.data() }));
+      }
+    });
+
     return () => {
       unsubQ();
       unsubE();
       unsubC();
+      unsubU();
+      unsubD();
+      unsubP();
     };
   }, []);
 
@@ -51,15 +74,20 @@ export default function Cuotas() {
     cuotasData.forEach((c) => (totalRecuperado += Number(c.monto) || 0));
     let totalNomina = 0;
     credData
-      .filter((c) => c.estado === "Activo")
-      .forEach((c) => {
+      .filter((c) => ["Activo", "aprobado", "Aprobado"].includes(c.estado || c.status))
+      .forEach((cred) => {
         const emp = empData.find(
-          (e) => e.empleadoId === c.empleadoId || e.id === c.empleadoId,
-        );
-        if (emp && emp.salario) totalNomina += Number(emp.salario) * 0.15;
+          (e) => e.empleadoId === cred.empleadoId || e.id === cred.empleadoId,
+        ) || {};
+        const usr = usuariosData.find(
+          (u) => u.uid === cred.empleadoId || u.id === cred.empleadoId || u.empleadoId === cred.empleadoId,
+        ) || {};
+        
+        const sal = Number(emp.salario || usr.salario || 0);
+        if (sal) totalNomina += sal * (parametros.porcentajeSueldo / 100);
       });
     return { totalRecuperado, totalNomina };
-  }, [cuotasData, empData, credData]);
+  }, [cuotasData, empData, credData, usuariosData, parametros]);
 
   const liveKpis = [
     {
@@ -77,48 +105,103 @@ export default function Cuotas() {
       hoverBg: "hover:bg-slate-600 hover:text-white",
     },
     {
-      label: "Deducción de Nómina (15%)",
-      value: `L ${stats.totalNomina.toLocaleString()}`,
+      label: `Deducción de Nómina (${parametros.porcentajeSueldo}%)`,
+      value: `L ${stats.totalNomina.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: "account_balance_wallet",
       valueColor: "text-green-800",
       hoverBg: "hover:bg-green-800 hover:text-white",
     },
   ];
 
-  const rows = cuotasData.map((c) => {
-    const emp =
-      empData.find(
-        (e) => e.empleadoId === c.empleadoId || e.id === c.empleadoId,
-      ) || {};
-    const cred =
-      credData.find(
-        (cr) => cr.empleadoId === c.empleadoId && cr.estado === "Activo",
-      ) || {};
-    return {
-      id: c.cuotaId || c.id,
-      name: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "Desconocido",
-      dept: emp.departamento || "N/A",
-      salary: `L ${Number(emp.salario || 0).toLocaleString()}`,
-      credit: cred.totalCredito
-        ? `L ${Number(cred.totalCredito).toLocaleString()}`
-        : "—",
-      quota: cred.plazoMeses ? `- / ${cred.plazoMeses}` : "—",
-      amount: `L ${Number(c.monto || 0).toLocaleString()}`,
-      date:
-        c.fecha && typeof c.fecha.toDate === "function"
-          ? c.fecha.toDate().toLocaleDateString()
-          : c.fecha || "",
-      status: Number(c.saldoPendiente || 0) > 0 ? "pending" : "applied",
-      img: "https://ui-avatars.com/api/?name=" + (emp.nombres || "U"),
-    };
-  });
+  const rows = credData
+    .filter((c) => ["Activo", "aprobado", "Aprobado"].includes(c.estado || c.status))
+    .map((cred) => {
+      const emp =
+        empData.find(
+          (e) => e.empleadoId === cred.empleadoId || e.id === cred.empleadoId || e.uid === cred.empleadoId || e.usuarioId === cred.empleadoId,
+        ) || {};
+      const usr =
+        usuariosData.find(
+          (u) => u.uid === cred.empleadoId || u.id === cred.empleadoId || u.empleadoId === cred.empleadoId,
+        ) || {};
+        
+      const pagos = cuotasData.filter(
+        (q) => q.creditoId === cred.id || q.creditoId === cred.creditoId || (q.empleadoId === cred.empleadoId && !q.creditoId)
+      );
+      
+      const totalCredito = Number(cred.totalCredito || cred.total || 0);
+      const cuotasTotales = Number(cred.plazoMeses || 1);
+      const montoCuota = totalCredito / cuotasTotales;
+      
+      const fullName = [emp.nombres, emp.apellidos].filter(Boolean).join(" ").trim();
+      const usrName = [usr.nombres, usr.apellidos].filter(Boolean).join(" ").trim();
+      const nombreEmpleado = fullName || usrName || emp.nombre || usr.nombre || cred.empleado || cred.empleadoNombre || "Empleado";
+
+      return {
+        id: cred.id,
+        name: nombreEmpleado,
+        dept: emp.departamento || usr.departamento || "N/A",
+        salary: `L ${Number(emp.salario || usr.salario || 0).toLocaleString()}`,
+        credit: `L ${totalCredito.toLocaleString()}`,
+        quota: `${pagos.length} / ${cuotasTotales}`,
+        amount: `L ${montoCuota.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        date: cred.fecha && typeof cred.fecha.toDate === "function"
+          ? cred.fecha.toDate().toLocaleDateString()
+          : (typeof cred.fecha === "string" ? cred.fecha : (cred.createdAt ? new Date(cred.createdAt).toLocaleDateString() : "N/A")),
+        status: pagos.length >= cuotasTotales ? "applied" : "pending",
+        img: "https://ui-avatars.com/api/?name=" + (nombreEmpleado !== "Empleado" ? nombreEmpleado : "U"),
+        orderId: cred.orderId || `RES-${cred.id.slice(0, 5).toUpperCase()}`,
+        rawCred: cred,
+        rawPagos: pagos.map((p, i) => ({
+          fecha: p.fechaRegistro?.toDate ? p.fechaRegistro.toDate().toLocaleDateString() : (p.fecha || "N/A"),
+          monto: Number(p.monto || 0),
+          cuota: i + 1,
+        })),
+        montoCuota: montoCuota
+      };
+    });
 
   const filtered = rows.filter((r) => {
     const matchSearch = r.name.toLowerCase().includes(search.toLowerCase());
     const matchDept =
       deptFilter === "Todos los Departamentos" || r.dept === deptFilter;
-    return matchSearch && matchDept;
-  });
+
+    let matchDate = true;
+    if (startDate || endDate) {
+      const cred = r.rawCred;
+      let cDate = null;
+      if (cred.fecha && typeof cred.fecha.toDate === "function") {
+        cDate = cred.fecha.toDate();
+      } else if (cred.fecha && typeof cred.fecha === "string") {
+        const parts = cred.fecha.split("/");
+        if (parts.length === 3) {
+          cDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
+        } else {
+          cDate = new Date(cred.fecha);
+        }
+      } else if (cred.createdAt) {
+        cDate = new Date(cred.createdAt);
+      }
+
+      if (cDate && !isNaN(cDate.getTime())) {
+        cDate.setHours(0, 0, 0, 0);
+        const cTime = cDate.getTime();
+        
+        if (startDate) {
+          const sd = new Date(`${startDate}T00:00:00`);
+          if (cTime < sd.getTime()) matchDate = false;
+        }
+        if (endDate) {
+          const ed = new Date(`${endDate}T23:59:59`);
+          if (cTime > ed.getTime()) matchDate = false;
+        }
+      } else {
+        matchDate = false;
+      }
+    }
+
+    return matchSearch && matchDept && matchDate;
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   // --- ÚNICA PARTE MODIFICADA: DISEÑO DEL REPORTE ---
   const handleExportReport = (deptReport = "Todos los Departamentos") => {
@@ -142,7 +225,7 @@ export default function Cuotas() {
       const match = r.credit !== "—"; // si tiene credito activo
       if (match) {
          const sal = Number(r.salary.replace(/[^0-9.-]+/g,"")) || 0;
-         return sal * 0.15;
+         return sal * (parametros.porcentajeSueldo / 100);
       }
       return 0;
     });
@@ -260,16 +343,8 @@ export default function Cuotas() {
               Control de Deducciones Salariales
             </h2>
             <p className="text-slate-500 mt-1 text-sm">
-              Gestión automática de cuotas basada en el 15% del salario mensual.
+              Gestión automática de cuotas basada en el {parametros.porcentajeSueldo}% del salario mensual.
             </p>
-          </div>
-          <div className="flex items-center justify-center gap-3 bg-slate-100 px-4 py-2 rounded-2xl shrink-0">
-            <span className="material-symbols-outlined text-green-800">
-              calendar_month
-            </span>
-            <span className="text-sm font-semibold text-gray-900">
-              Octubre 2023 - Noviembre 2023
-            </span>
           </div>
         </div>
 
@@ -340,15 +415,33 @@ export default function Cuotas() {
                   Departamento
                 </label>
                 <select
-                  className="bg-white border-none rounded-xl text-sm font-medium py-2 pl-4 pr-10 outline-none focus:ring-2 focus:ring-green-700 cursor-pointer"
+                  className="bg-white border-none rounded-xl text-sm font-medium py-2 pl-4 pr-10 outline-none focus:ring-2 focus:ring-green-700 cursor-pointer shadow-sm"
                   value={deptFilter}
                   onChange={(e) => setDeptFilter(e.target.value)}
                 >
                   <option>Todos los Departamentos</option>
-                  <option>Corte y Cosecha</option>
-                  <option>Mantenimiento</option>
-                  <option>Logística</option>
+                  {departamentos.map((dep, idx) => (
+                      <option key={idx} value={dep.nombre}>{dep.nombre}</option>
+                  ))}
                 </select>
+              </div>
+              <div className="flex items-center gap-2 bg-white rounded-xl shadow-sm px-3 py-1.5 focus-within:ring-2 focus-within:ring-green-700">
+                <span className="material-symbols-outlined text-slate-400 text-sm">calendar_month</span>
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-transparent border-none text-sm font-medium text-slate-700 outline-none text-center cursor-pointer"
+                  title="Fecha de Inicio"
+                />
+                <span className="text-slate-300 font-bold">-</span>
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-transparent border-none text-sm font-medium text-slate-700 outline-none text-center cursor-pointer"
+                  title="Fecha de Fin"
+                />
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -361,9 +454,9 @@ export default function Cuotas() {
                 <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all flex flex-col p-2">
                   <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest px-4 py-2 opacity-60">Selecciona el reporte</span>
                   <button onClick={() => handleExportReport("Todos los Departamentos")} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Reporte Global</button>
-                  <button onClick={() => handleExportReport("Corte y Cosecha")} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Depto. Corte y Cosecha</button>
-                  <button onClick={() => handleExportReport("Mantenimiento")} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Depto. Mantenimiento</button>
-                  <button onClick={() => handleExportReport("Logística")} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Depto. Logística</button>
+                  {departamentos.map((dep, idx) => (
+                      <button key={idx} onClick={() => handleExportReport(dep.nombre)} className="px-4 py-2 hover:bg-slate-50 text-left rounded-xl text-slate-700 text-xs font-bold transition-all">Depto. {dep.nombre}</button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -379,13 +472,14 @@ export default function Cuotas() {
                       { label: "Empleado", align: "" },
                       { label: "Salario Base", align: "text-center" },
                       { label: "Crédito Total", align: "text-right" },
-                      { label: "Cuota (15%)", align: "text-center" },
+                      { label: "Avance Cuotas", align: "text-center" },
                       { label: "Monto Deducción", align: "text-right" },
                       { label: "Fecha Aplicación", align: "" },
                       { label: "Estado", align: "" },
-                    ].map(({ label, align }) => (
+                      { label: "", align: "" },
+                    ].map(({ label, align }, idx) => (
                       <th
-                        key={label}
+                        key={idx}
                         className={`px-8 py-5 text-[11px] font-black uppercase tracking-widest text-slate-400 ${align}`}
                       >
                         {label}
@@ -415,7 +509,7 @@ export default function Cuotas() {
                             >
                               {row.name}
                             </p>
-                            <p className="text-xs text-slate-400">{row.dept}</p>
+                            <p className="text-xs text-slate-400">{row.dept} • Ref: {row.orderId}</p>
                           </div>
                         </div>
                       </td>
@@ -445,6 +539,19 @@ export default function Cuotas() {
                       <td className="px-8 py-5">
                         <StatusBadge status={row.status} />
                       </td>
+                      <td className="px-4 py-5 text-right">
+                        <button
+                          onClick={() => {
+                            setSelectedRow(row);
+                            setIsModalOpen(true);
+                          }}
+                          className="p-2 hover:bg-slate-100 rounded-xl transition-all"
+                        >
+                          <span className="material-symbols-outlined text-slate-400 group-hover:text-green-800">
+                            visibility
+                          </span>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -464,7 +571,7 @@ export default function Cuotas() {
                 Proyección de Deducciones
               </h4>
               <p className="text-sm text-slate-500 mb-6 max-w-md">
-                Basado en la política de deducción del 15% para el próximo
+                Basado en la política de deducción del {parametros.porcentajeSueldo}% para el próximo
                 cierre de nómina.
               </p>
               <div className="flex gap-6">
@@ -500,7 +607,7 @@ export default function Cuotas() {
                 Política de Nómina
               </h4>
               <p className="text-sm text-green-200/80 mt-2 leading-relaxed">
-                Deducciones automáticas configuradas al 15% del salario mensual.
+                Deducciones automáticas configuradas al {parametros.porcentajeSueldo}% del salario mensual exigiendo una antigüedad mínima de {parametros.minimoAccesoCredito || 3} meses.
               </p>
             </div>
             <button className="mt-8 px-6 py-3 bg-white/10 hover:bg-white/20 transition-colors rounded-xl text-sm font-bold border border-white/20 w-fit">
@@ -509,6 +616,101 @@ export default function Cuotas() {
           </div>
         </div>
       </motion.div>
+
+      {/* MODAL DETALLE DE CUOTAS */}
+      {isModalOpen && selectedRow && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.95 }}
+            animate={{ scale: 1 }}
+            className="bg-white rounded-[2rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+          >
+            <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
+              <h3 className="font-black uppercase tracking-widest text-sm flex items-center gap-2">
+                <span className="material-symbols-outlined">receipt_long</span>
+                Detalle de Deducción
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="material-symbols-outlined hover:rotate-90 transition-all cursor-pointer"
+              >
+                close
+              </button>
+            </div>
+            <div className="p-8 overflow-y-auto space-y-6">
+              <div className="flex items-center gap-4 mb-2">
+                <div className="w-16 h-16 rounded-2xl overflow-hidden ring-4 ring-slate-100 shrink-0">
+                  <img src={selectedRow.img} alt="" className="w-full h-full object-cover"/>
+                </div>
+                <div>
+                  <h4 className="text-2xl font-black text-slate-900 leading-none">{selectedRow.name}</h4>
+                  <p className="text-sm font-bold text-slate-400 mt-1">{selectedRow.dept} • {selectedRow.orderId}</p>
+                </div>
+              </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Avance de Pago
+                  </p>
+                  <p className="text-xl font-black text-slate-900 flex items-baseline gap-1">
+                     {selectedRow.quota.split('/')[0].trim()}
+                     <span className="text-sm text-slate-400 font-bold">/ {selectedRow.quota.split('/')[1].trim()} cuotas</span>
+                  </p>
+                </div>
+                <div className="bg-green-50/50 p-4 rounded-2xl border border-green-100">
+                  <p className="text-[9px] font-black text-green-700 uppercase tracking-widest mb-1">
+                    Valor Deducción Mensual
+                  </p>
+                  <p className="text-xl font-black text-green-800">
+                    {selectedRow.amount}
+                  </p>
+                </div>
+              </div>
+
+               <div>
+                <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest border-b border-slate-100 pb-2">
+                  Historial de Transacciones Registradas
+                </h4>
+                <div className="space-y-2">
+                  {selectedRow.rawPagos.map((p, i) => (
+                    <div
+                      key={i}
+                      className="flex justify-between items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-300 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                         <div className="bg-white w-8 h-8 rounded-full flex items-center justify-center shadow-sm">
+                            <span className="material-symbols-outlined text-green-700 text-[14px]">check</span>
+                         </div>
+                         <div className="flex flex-col">
+                           <span className="text-sm font-bold text-slate-700">Cuota #{p.cuota}</span>
+                           <span className="text-[10px] font-medium text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200 mt-1 w-fit">{p.fecha}</span>
+                         </div>
+                      </div>
+                      <span className="text-sm font-black text-green-800">
+                        L {Number(p.monto).toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedRow.rawPagos.length === 0 && (
+                     <div className="py-6 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        <span className="material-symbols-outlined opacity-50 mb-2">inbox</span>
+                        <p className="text-xs font-bold uppercase tracking-widest">Aún no hay deducciones</p>
+                     </div>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="w-full py-4 mt-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+              >
+                Cerrar Detalle
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 }

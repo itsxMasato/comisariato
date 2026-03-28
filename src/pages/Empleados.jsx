@@ -10,8 +10,8 @@ export default function Empleados() {
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
-    const PORCENTAJE_CREDITO_GLOBAL = 0.15;
     const [departamentos, setDepartamentos] = useState([]);
+    const [parametros, setParametros] = useState({ porcentajeSueldo: 15 });
     const [historialData, setHistorialData] = useState([]);
 
     useEffect(() => {
@@ -22,8 +22,15 @@ export default function Empleados() {
             }));
             setDepartamentos(deptos);
         });
-
-        return () => unsubDepto();
+        const unsubParam = onSnapshot(doc(db, "parametros", "general"), (docSnap) => {
+            if (docSnap.exists()) {
+                setParametros(docSnap.data());
+            }
+        });
+        return () => {
+            unsubDepto();
+            unsubParam();
+        };
     }, []);
 
 
@@ -512,7 +519,7 @@ export default function Empleados() {
                                             const valorLimpio = e.target.value.replace(/,/g, "");
                                             if (!/^\d*\.?\d*$/.test(valorLimpio)) return;
                                             const nuevoSalario = parseFloat(valorLimpio) || 0;
-                                            const nuevoLimite = nuevoSalario * PORCENTAJE_CREDITO_GLOBAL;
+                                            const nuevoLimite = nuevoSalario * (parametros.porcentajeSueldo / 100);
                                             setFormData({
                                                 ...formData,
                                                 salario: nuevoSalario,

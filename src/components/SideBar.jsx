@@ -23,8 +23,9 @@ export default function SideBar({ isOpen, setIsOpen }) {
       {/* Botón Flotante para Ocultar/Mostrar (Pegado al borde) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed top-6 z-50 bg-green-950 text-white p-2 rounded-r-xl shadow-lg transition-all duration-300 hover:bg-green-900 focus:outline-none flex items-center justify-center ${isOpen ? "left-64" : "left-0"
-          }`}
+        className={`fixed top-6 z-50 bg-green-950 text-white p-2 rounded-r-xl shadow-lg transition-all duration-300 hover:bg-green-900 focus:outline-none flex items-center justify-center ${
+          isOpen ? "left-64" : "left-0"
+        }`}
         title={isOpen ? "Ocultar menú" : "Mostrar menú"}
       >
         <span className="material-symbols-outlined text-green-300">
@@ -42,8 +43,9 @@ export default function SideBar({ isOpen, setIsOpen }) {
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed left-0 top-0 h-full flex flex-col z-40 w-64 bg-green-950 shadow-2xl transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+        className={`fixed left-0 top-0 h-full flex flex-col z-40 w-64 bg-green-950 shadow-2xl transition-transform duration-300 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
         {/* Brand */}
         <div className="px-4 py-6">
@@ -136,9 +138,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
                 </span>
               </NavLink>
               <NavLink to="/bitacora" className={linkClass}>
-                <span className="material-symbols-outlined">
-                  history
-                </span>
+                <span className="material-symbols-outlined">history</span>
                 <span
                   className="text-sm font-medium"
                   style={{ fontFamily: "Manrope, sans-serif" }}
@@ -147,14 +147,12 @@ export default function SideBar({ isOpen, setIsOpen }) {
                 </span>
               </NavLink>
               <NavLink to="/datosvariables" className={linkClass}>
-                <span className="material-symbols-outlined">
-                  tune
-                </span>
+                <span className="material-symbols-outlined">tune</span>
                 <span
                   className="text-sm font-medium"
                   style={{ fontFamily: "Manrope, sans-serif" }}
                 >
-                  Datos Variables
+                  Parametros
                 </span>
               </NavLink>
             </>
@@ -174,7 +172,11 @@ export default function SideBar({ isOpen, setIsOpen }) {
           >
             <div className="w-8 h-8 rounded-full bg-green-800 flex items-center justify-center shrink-0 overflow-hidden">
               {photoURL ? (
-                <img src={photoURL} alt="Perfil" className="w-full h-full object-cover" />
+                <img
+                  src={photoURL}
+                  alt="Perfil"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <span className="material-symbols-outlined text-green-200 text-base">
                   person
