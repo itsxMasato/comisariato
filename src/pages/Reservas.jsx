@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../auth/AuthProvider";
 import {
   collection,
@@ -9,7 +9,8 @@ import {
   serverTimestamp,
   increment,
 } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { db, auth } from "../firebase/firebase";
+
 
 const formatCurrency = (value) =>
   `L ${Number(value).toLocaleString("es-HN", {
@@ -87,23 +88,24 @@ const mapCreditoToReserva = (id, data, empleadosById, usuariosById) => {
   const items =
     Array.isArray(data.items) && data.items.length
       ? data.items.map((item) => ({
-          ...item,
-          productoId: item.productoId || item.id || data.productoId || null,
-          qty: Number(item.qty || 0),
-          unitPrice: Number(item.unitPrice || 0),
-        }))
+        ...item,
+        productoId: item.productoId || item.id || data.productoId || null,
+        qty: Number(item.qty || 0),
+        unitPrice: Number(item.unitPrice || 0),
+      }))
       : [
-          {
-            icon: "inventory_2",
-            name: data.productoNombre || data.productoId || "Producto",
-            productoId: data.productoId || null,
-            qty: cantidad > 0 ? cantidad : 1,
-            unitPrice,
-          },
-        ];
+        {
+          icon: "inventory_2",
+          name: data.productoNombre || data.productoId || "Producto",
+          productoId: data.productoId || null,
+          qty: cantidad > 0 ? cantidad : 1,
+          unitPrice,
+        },
+      ];
 
   return {
     firebaseId: id,
+    empleadoId: data.empleadoId,
     empleado: empleadoNombre,
     orderId: data.orderId || `RES-${String(id).slice(0, 6).toUpperCase()}`,
     createdAt: formatCreatedAt(data.createdAt, data.fecha, id),
@@ -120,6 +122,30 @@ const statusClass = {
 };
 
 export default function Reservas() {
+  const [viewHistory, setViewHistory] = useState(null);
+  const [userHistory, setUserHistory] = useState([]);
+
+  useEffect(() => {
+    if (!viewHistory) {
+      setUserHistory([]);
+      return;
+    }
+
+    // Buscamos todos los créditos/reservas de este empleadoId
+    const unsubHistory = onSnapshot(collection(db, "creditos"), (snapshot) => {
+      const records = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        // Filtramos por el ID del empleado que viene en la reserva
+        .filter(doc => doc.empleadoId === viewHistory.empleadoId);
+
+      // Ordenar por fecha descendente
+      const sorted = records.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setUserHistory(sorted);
+    });
+
+    return () => unsubHistory();
+  }, [viewHistory]);
+
   const { userName, role: authRole } = useAuth();
   const [reservas, setReservas] = useState([]);
   const [empleadosById, setEmpleadosById] = useState({});
@@ -286,8 +312,8 @@ export default function Reservas() {
               </thead>
               <tbody class="text-[10px]">
                 ${filteredReservas
-                  .map(
-                    (r) => `
+        .map(
+          (r) => `
                   <tr class="border-b border-gray-100">
                     <td class="px-3 py-3 font-mono text-gray-400">${r.orderId}</td>
                     <td class="px-3 py-3 font-bold text-gray-800">${r.empleado}</td>
@@ -298,8 +324,8 @@ export default function Reservas() {
                     </td>
                   </tr>
                 `,
-                  )
-                  .join("")}
+        )
+        .join("")}
               </tbody>
             </table>
           </section>
@@ -347,21 +373,10 @@ export default function Reservas() {
       await updateDoc(doc(db, "creditos", selectedReserva.firebaseId), {
         estado: "aprobado",
         status: "Aprobado",
+        tipoModificacion: "Aprobación de Crédito",
+        usuarioModifico: auth.currentUser?.email || "Admin",
         updatedDate: serverTimestamp(),
       });
-
-      if (selectedReserva.items && selectedReserva.items.length > 0) {
-        for (const item of selectedReserva.items) {
-          const targetId = item.productoId || item.id;
-          const qtyToDeduct = Number(item.qty);
-          if (targetId && qtyToDeduct > 0) {
-            const propRef = doc(db, "productos", targetId);
-            await updateDoc(propRef, {
-              stock: increment(-qtyToDeduct)
-            }).catch(e => console.error("Error stock descontar", e));
-          }
-        }
-      }
 
       closeModal();
     } catch (err) {
@@ -376,8 +391,24 @@ export default function Reservas() {
         estado: "rechazado",
         status: "Rechazado",
         observation: observacion.trim(),
+        tipoModificacion: "Cambio de Estado de Solicitud a Rechazada",
+        usuarioModifico: auth.currentUser?.email || "Admin",
         updatedDate: serverTimestamp(),
       });
+
+      if (selectedReserva.items && selectedReserva.items.length > 0) {
+        for (const item of selectedReserva.items) {
+          const targetId = item.productoId || item.id;
+          const qtyToReturn = Number(item.qty);
+          if (targetId && qtyToReturn > 0) {
+            const propRef = doc(db, "productos", targetId);
+            await updateDoc(propRef, {
+              stock: increment(qtyToReturn)
+            }).catch(e => console.error("Error stock devolver", e));
+          }
+        }
+      }
+
       closeModal();
     } catch (err) {
       setError("Error al rechazar");
@@ -545,8 +576,8 @@ export default function Reservas() {
                       </h5>
                       <div className="flex bg-slate-200/50 p-1 rounded-xl">
                         {["Pendiente", "Aprobado", "Rechazado", "Todas"].map(s => (
-                          <button 
-                            key={s} 
+                          <button
+                            key={s}
                             onClick={() => setStatusFilter(s)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter === s ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                           >
@@ -595,6 +626,7 @@ export default function Reservas() {
                           >
                             {reserva.status}
                           </span>
+
                           <button
                             onClick={() => openModal(reserva)}
                             className="inline-flex items-center gap-2 rounded-xl bg-green-800 px-4 py-2 text-xs font-bold text-white hover:bg-green-700"
@@ -620,10 +652,63 @@ export default function Reservas() {
         )}
       </motion.div>
 
+      <SidePanel
+        open={!!viewHistory}
+        onClose={() => setViewHistory(null)}
+        title="Historial de Créditos"
+      >
+        {viewHistory && (
+          <div className="flex flex-col h-full">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl mb-6 border border-slate-100">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-green-700 font-black">
+                {viewHistory.empleado.charAt(0)}
+              </div>
+              <div>
+                <p className="font-black text-slate-900 text-base leading-tight">{viewHistory.empleado}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Auditoría de Cuenta</p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+              {userHistory.length === 0 ? (
+                <p className="text-center py-10 text-xs text-slate-400 font-bold uppercase">Sin registros previos</p>
+              ) : (
+                userHistory.map((item) => (
+                  <div key={item.id} className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase ${normalizeStatus(item.estado, item.status) === 'Aprobado' ? 'bg-emerald-100 text-emerald-700' :
+                        normalizeStatus(item.estado, item.status) === 'Rechazado' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                        {normalizeStatus(item.estado, item.status)}
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-400">
+                        {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString() : 'Reciente'}
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-800">{item.productoNombre || "Compra Comisariato"}</p>
+                    <p className="text-lg font-black text-green-800 mt-1">{formatCurrency(item.total || 0)}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button
+              onClick={() => setViewHistory(null)}
+              className="w-full mt-6 bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
+            >
+              Cerrar Historial
+            </button>
+          </div>
+        )}
+      </SidePanel>
+
+
+
+
       {/* MODAL MANTENIDO INTACTO */}
       {showModal && selectedReserva && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl md:p-8">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 transition-all duration-300 ${viewHistory ? 'lg:pr-[420px]' : ''}`}>
+          <div className="w-full max-w-3xl rounded-3xl bg-white p-6 shadow-2xl md:p-8 transition-all duration-300">
             <div className="mb-6 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
@@ -636,12 +721,20 @@ export default function Reservas() {
                   {selectedReserva.empleado}
                 </h4>
               </div>
-              <button
-                onClick={closeModal}
-                className="rounded-xl bg-slate-100 p-2 text-slate-500 hover:bg-slate-200"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setViewHistory(selectedReserva)}
+                  className="rounded-xl bg-emerald-50 text-emerald-700 p-2 hover:bg-emerald-100 flex items-center gap-2 px-4 shadow-sm font-bold text-[10px] uppercase tracking-widest transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">history</span> Ver Historial
+                </button>
+                <button
+                  onClick={closeModal}
+                  className="rounded-xl bg-slate-100 p-2 text-slate-500 hover:bg-slate-200"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
             </div>
 
             <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200 text-sm">
@@ -763,8 +856,8 @@ export default function Reservas() {
               {confirmAction.type === 'approve' ? '¿Aprobar Reserva?' : '¿Rechazar Reserva?'}
             </h4>
             <p className="mb-8 text-sm text-slate-500 leading-relaxed font-medium">
-              {confirmAction.type === 'approve' 
-                ? 'El empleado recibirá los productos de esta lista y se aplicarán los descuentos automáticos correspondientes. Esta acción es definitiva.' 
+              {confirmAction.type === 'approve'
+                ? 'El empleado recibirá los productos de esta lista y se aplicarán los descuentos automáticos correspondientes. Esta acción es definitiva.'
                 : 'Esta acción de rechazo cancelará la reserva, devolverá el crédito del empleado a su estado original y se le notificará.'}
             </p>
             <div className="grid grid-cols-2 gap-3">
@@ -789,5 +882,38 @@ export default function Reservas() {
         </div>
       )}
     </>
+  );
+}
+
+// Componente utilitario SidePanel añadido
+function SidePanel({ open, onClose, title, children }) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ x: "100%" }}
+          animate={{ x: 0 }}
+          exit={{ x: "100%" }}
+          transition={{ type: "spring", damping: 25, stiffness: 200 }}
+          className="fixed inset-y-0 right-0 w-full sm:w-[420px] bg-white shadow-2xl z-[60] p-8 flex flex-col gap-6 border-l border-slate-200"
+        >
+          <div className="flex items-center justify-between">
+            <h3
+              className="text-xl font-bold text-green-900"
+              style={{ fontFamily: "Manrope,sans-serif" }}
+            >
+              {title}
+            </h3>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-all"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          {children}
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

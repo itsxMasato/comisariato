@@ -91,7 +91,7 @@ export default function DatosVariables() {
         fechaRegistro: Timestamp.now(),
         nombre: nombre.trim(),
         responsable: formDataDepto.get("responsable") || "",
-        tipoModificacion: "Creacion de Departamento",
+        tipoModificacion: "Creación de Departamento",
         totalEmpleados: "0",
         turno: formDataDepto.get("turno") || "Matutino",
         usuarioModifico: auth.currentUser?.email || "Admin"
@@ -122,10 +122,10 @@ export default function DatosVariables() {
     try {
       await addDoc(collection(db, "categorias"), {
         descripcion: formDataCat.get("descripcion") || "",
-        fechaModifico: Timestamp.now(),
+        fechaModificacion: Timestamp.now(),
         fechaRegistro: Timestamp.now(),
         nombre: nombre.trim(),
-        tipoModifico: "Creacion",
+        tipoModificacion: "Creación de Categoría",
         usuarioModifico: auth.currentUser?.email || "Admin"
       });
       setIsCatModalOpen(false);

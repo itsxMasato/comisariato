@@ -72,7 +72,7 @@ export default function Empleados() {
     const sumaSalarios = employees.reduce((acc, curr) => acc + curr.salario, 0);
 
     const inactivosEnNomina = employees.filter(e => e.estado === 'inactive' || e.estado === 'Inactivo').length;
-    const eliminadosHistorico = historialData.filter(h => h.tipoModificacion === 'Eliminado').length;
+    const eliminadosHistorico = historialData.filter(h => h.tipoModificacion === 'Eliminación de Empleado').length;
     const totalInactivosGeneral = inactivosEnNomina + eliminadosHistorico;
 
     const [formData, setFormData] = useState({
@@ -121,7 +121,7 @@ export default function Empleados() {
             salario: formData.salario,
             telefono: formData.telefono,
             estado: formData.estado === "active" ? "Activo" : formData.estado,
-            tipoModificacion: editingEmployee ? "Actualización" : "Creación",
+            tipoModificacion: editingEmployee ? "Actualización de Empleado" : "Creación de Empleado",
             usuarioModifico: auth.currentUser?.email || "Admin",
             fechaModificacion: Timestamp.now()
         };
@@ -160,7 +160,7 @@ export default function Empleados() {
                 nombres: emp.nombres || "",
                 salario: emp.salario || 0,
                 telefono: emp.telefono || "",
-                tipoModificacion: "Eliminado",
+                tipoModificacion: "Eliminación de Empleado",
                 usuarioModifico: auth.currentUser?.email || "Admin"
             });
             await deleteDoc(doc(db, "empleados", emp.empleadoId));
@@ -242,8 +242,8 @@ export default function Empleados() {
                             </thead>
                             <tbody class="text-[11px]">
                                 ${listToExport
-                                    .map(
-                                        (e) => `
+                .map(
+                    (e) => `
                                     <tr class="border-b border-gray-100">
                                         <td class="px-3 py-3 font-bold text-gray-800">${e.nombres} ${e.apellidos}</td>
                                         <td class="px-3 py-3 font-mono text-gray-500 text-[10px]">${e.dni}<br/><span class="text-[9px] text-gray-400 font-sans">${e.codigoEmpleado}</span></td>
@@ -252,8 +252,8 @@ export default function Empleados() {
                                         <td class="px-3 py-3 font-bold text-green-700 text-right">${fmtL(e.limiteCredito)}</td>
                                     </tr>
                                 `,
-                                    )
-                                    .join("")}
+                )
+                .join("")}
                             </tbody>
                         </table>
                     </section>
