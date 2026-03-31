@@ -7,6 +7,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  deleteDoc,
   Timestamp,
 } from "firebase/firestore";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -56,19 +57,15 @@ function AvatarWithFallback({ name, img, size = "md" }) {
 
 // --- DATA ---
 const ALL_PERMISSIONS = [
-  "Usuarios",
-  "Finanzas",
-  "Inventario",
-  "Logs",
-  "Configuración",
-  "Ventas",
-  "Reportes",
-  "Ver Usuarios",
-  "Gestionar Créditos",
-  "Stock",
-  "Horarios",
-  "Reservas",
-  "Calendario",
+  "DASHBOARD",
+  "PRODUCTOS",
+  "EMPLEADOS",
+  "CREDITOS",
+  "CUOTAS",
+  "RESERVAS",
+  "USUARIOS",
+  "BITACORA",
+  "PARAMETROS",
 ];
 
 const INITIAL_ROLES = [
@@ -76,42 +73,53 @@ const INITIAL_ROLES = [
     id: 1,
     name: "SUPER ADMIN",
     permissions: [
-      "Usuarios",
-      "Finanzas",
-      "Inventario",
-      "Logs",
-      "Configuración",
+      "DASHBOARD",
+      "PRODUCTOS",
+      "EMPLEADOS",
+      "CREDITOS",
+      "CUOTAS",
+      "RESERVAS",
+      "USUARIOS",
+      "BITACORA",
+      "PARAMETROS",
     ],
     estado: "Activo",
   },
   {
     id: 2,
-    name: "ADMIN COMISARIATO",
-    permissions: ["Inventario", "Ventas", "Reportes"],
+    name: "ADMIN",
+    permissions: [
+      "DASHBOARD",
+      "PRODUCTOS",
+      "EMPLEADOS",
+      "CREDITOS",
+      "CUOTAS",
+      "RESERVAS",
+    ],
     estado: "Activo",
   },
   {
     id: 3,
-    name: "EDITOR CRÉDITOS",
-    permissions: ["Ver Usuarios", "Gestionar Créditos"],
+    name: "EDITOR CREDITOS",
+    permissions: ["DASHBOARD", "CREDITOS", "CUOTAS", "EMPLEADOS"],
     estado: "Activo",
   },
   {
     id: 4,
     name: "EDITOR INVENTARIO",
-    permissions: ["Inventario", "Stock"],
+    permissions: ["DASHBOARD", "PRODUCTOS"],
     estado: "Activo",
   },
   {
     id: 5,
     name: "EDITOR EMPLEADOS",
-    permissions: ["Usuarios", "Horarios"],
+    permissions: ["DASHBOARD", "EMPLEADOS", "CREDITOS"],
     estado: "Activo",
   },
   {
     id: 6,
-    name: "SUPERVISOR RESERVAS",
-    permissions: ["Reservas", "Calendario"],
+    name: "CEO",
+    permissions: ["DASHBOARD"],
     estado: "Activo",
   },
 ];
@@ -530,18 +538,76 @@ export default function Usuarios() {
           ? "bg-rose-600 hover:bg-rose-700"
           : "bg-green-700 hover:bg-green-800",
       onConfirm: async () => {
-        await updateDoc(doc(db, "roles", role.id), {
-          estado: next,
-          fechaModificacion: Timestamp.now(),
-          tipoModificacion: "Cambio de Rol",
-          usuarioModifico: auth.currentUser?.email || "Admin",
-        });
-        setConfirmData(null);
-        showToast(
-          next === "Deshabilitado"
-            ? `Rol "${role.name}" deshabilitado`
-            : `Rol "${role.name}" habilitado`,
-        );
+        try {
+          await updateDoc(doc(db, "roles", role.id), {
+            estado: next,
+            fechaModificacion: Timestamp.now(),
+            tipoModificacion: "Cambio de Rol",
+            usuarioModifico: auth.currentUser?.email || "Admin",
+          });
+          
+          if (next === "Deshabilitado") {
+            const affectedUsers = users.filter((u) => u.role === role.name && u.status === "Activo");
+            const updatePromises = affectedUsers.map(u => 
+              updateDoc(doc(db, "usuarios", u.id), {
+                estado: "Deshabilitado",
+                fechaActualizacion: Timestamp.now(),
+                tipoModificacion: "Cascada - Rol Deshabilitado",
+                usuarioModifico: auth.currentUser?.email || "Sistema"
+              })
+            );
+            if (updatePromises.length > 0) {
+              await Promise.all(updatePromises);
+              showToast(`Rol deshabilitado. Se deshabilitaron ${updatePromises.length} usuarios en cascada.`);
+            } else {
+              showToast(`Rol "${role.name}" deshabilitado`);
+            }
+          } else {
+            showToast(`Rol "${role.name}" habilitado`);
+          }
+          setConfirmData(null);
+        } catch (error) {
+          showToast(`Error: ${error.message}`);
+        }
+      },
+    });
+  };
+
+  const deleteRole = (role) => {
+    setConfirmData({
+      title: "Eliminar Rol Definitivamente",
+      message: `¿Estás completamente seguro de que deseas ELIMINAR de forma permanente el rol "${role.name}" de la base de datos? Esto no se puede deshacer.`,
+      confirmLabel: "Sí, Eliminar Permanentemente",
+      confirmColor: "bg-rose-600 hover:bg-rose-700",
+      onConfirm: async () => {
+        try {
+          // Primero, deshabilitar a todos los usuarios con este rol para revocarles el acceso
+          const affectedUsers = users.filter((u) => u.role === role.name && u.status === "Activo");
+          const updatePromises = affectedUsers.map(u => 
+            updateDoc(doc(db, "usuarios", u.id), {
+              estado: "Deshabilitado",
+              fechaActualizacion: Timestamp.now(),
+              tipoModificacion: "Cascada - Rol Eliminado",
+              usuarioModifico: auth.currentUser?.email || "Sistema"
+            })
+          );
+          
+          if (updatePromises.length > 0) {
+            await Promise.all(updatePromises);
+          }
+
+          // Luego eliminar el rol
+          await deleteDoc(doc(db, "roles", role.id));
+          setConfirmData(null);
+          
+          if (updatePromises.length > 0) {
+            showToast(`Rol eliminado. Se desactivaron ${updatePromises.length} usuarios huérfanos.`);
+          } else {
+            showToast(`Rol "${role.name}" eliminado definitivamente`);
+          }
+        } catch (error) {
+          showToast(`Error: ${error.message}`);
+        }
       },
     });
   };
@@ -965,6 +1031,17 @@ export default function Usuarios() {
                         </span>
                         {isDisabled ? "Habilitar Rol" : "Deshabilitar Rol"}
                       </button>
+                      {auth.currentUser?.email === "admin@comisariato.pro" && (
+                        <button
+                          onClick={() => deleteRole(role)}
+                          className="w-full mt-2 py-2.5 rounded-xl font-bold text-xs border-2 border-red-100 text-red-600 bg-red-50 hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex items-center justify-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-sm">
+                            delete_forever
+                          </span>
+                          Eliminar Definitivamente
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );

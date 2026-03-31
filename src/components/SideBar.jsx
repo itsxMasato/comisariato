@@ -1,6 +1,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { hasPermission, MODULES } from "../utils/roles";
 
 export default function SideBar({ isOpen, setIsOpen }) {
   const { logout, role, user, photoURL } = useAuth();
@@ -65,96 +66,122 @@ export default function SideBar({ isOpen, setIsOpen }) {
 
         {/* Nav */}
         <nav className="flex-1 mt-2 space-y-0.5 overflow-y-auto">
-          <NavLink to="/" end className={linkClass}>
-            <span className="material-symbols-outlined">dashboard</span>
-            <span
-              className="text-sm font-medium"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Dashboard
-            </span>
-          </NavLink>
-          <NavLink to="/productos" className={linkClass}>
-            <span className="material-symbols-outlined">inventory_2</span>
-            <span
-              className="text-sm font-medium"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Productos
-            </span>
-          </NavLink>
-          <NavLink to="/empleados" className={linkClass}>
-            <span className="material-symbols-outlined">group</span>
-            <span
-              className="text-sm font-medium"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Empleados
-            </span>
-          </NavLink>
-          <NavLink to="/creditos" className={linkClass}>
-            <span className="material-symbols-outlined">credit_card</span>
-            <span
-              className="text-sm font-medium"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Créditos
-            </span>
-          </NavLink>
-          <NavLink to="/cuotas" className={linkClass}>
-            <span className="material-symbols-outlined">payments</span>
-            <span
-              className="text-sm font-medium"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Cuotas
-            </span>
-          </NavLink>
-          <NavLink to="/reservas" className={linkClass}>
-            <span className="material-symbols-outlined">event</span>
-            <span
-              className="text-sm font-medium"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Reservas
-            </span>
-          </NavLink>
+          {hasPermission(role, MODULES.DASHBOARD, "VIEW") && (
+            <NavLink to="/" end className={linkClass}>
+              <span className="material-symbols-outlined">dashboard</span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Dashboard
+              </span>
+            </NavLink>
+          )}
+
+          {hasPermission(role, MODULES.PRODUCTOS, "VIEW") && (
+            <NavLink to="/productos" className={linkClass}>
+              <span className="material-symbols-outlined">inventory_2</span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Productos
+              </span>
+            </NavLink>
+          )}
+
+          {hasPermission(role, MODULES.EMPLEADOS, "VIEW") && (
+            <NavLink to="/empleados" className={linkClass}>
+              <span className="material-symbols-outlined">group</span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Empleados
+              </span>
+            </NavLink>
+          )}
+
+          {hasPermission(role, MODULES.CREDITOS, "VIEW") && (
+            <NavLink to="/creditos" className={linkClass}>
+              <span className="material-symbols-outlined">credit_card</span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Créditos
+              </span>
+            </NavLink>
+          )}
+
+          {hasPermission(role, MODULES.CUOTAS, "VIEW") && (
+            <NavLink to="/cuotas" className={linkClass}>
+              <span className="material-symbols-outlined">payments</span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Cuotas
+              </span>
+            </NavLink>
+          )}
+
+          {hasPermission(role, MODULES.RESERVAS, "VIEW") && (
+            <NavLink to="/reservas" className={linkClass}>
+              <span className="material-symbols-outlined">event</span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Reservas
+              </span>
+            </NavLink>
+          )}
 
           {/* Admin section */}
-          {role === "Administrador" && (
+          {(hasPermission(role, MODULES.USUARIOS, "VIEW") || hasPermission(role, MODULES.BITACORA, "VIEW") || hasPermission(role, MODULES.PARAMETROS, "VIEW")) && (
             <>
               <div className="mt-4 mb-2 px-4 text-[0.65rem] font-bold text-green-100/40 uppercase tracking-wider">
                 Administración
               </div>
-              <NavLink to="/usuarios" className={linkClass}>
-                <span className="material-symbols-outlined">
-                  admin_panel_settings
-                </span>
-                <span
-                  className="text-sm font-medium"
-                  style={{ fontFamily: "Manrope, sans-serif" }}
-                >
-                  Usuarios
-                </span>
-              </NavLink>
-              <NavLink to="/bitacora" className={linkClass}>
-                <span className="material-symbols-outlined">history</span>
-                <span
-                  className="text-sm font-medium"
-                  style={{ fontFamily: "Manrope, sans-serif" }}
-                >
-                  Bitacora
-                </span>
-              </NavLink>
-              <NavLink to="/datosvariables" className={linkClass}>
-                <span className="material-symbols-outlined">tune</span>
-                <span
-                  className="text-sm font-medium"
-                  style={{ fontFamily: "Manrope, sans-serif" }}
-                >
-                  Parametros
-                </span>
-              </NavLink>
+              
+              {hasPermission(role, MODULES.USUARIOS, "VIEW") && (
+                <NavLink to="/usuarios" className={linkClass}>
+                  <span className="material-symbols-outlined">
+                    admin_panel_settings
+                  </span>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ fontFamily: "Manrope, sans-serif" }}
+                  >
+                    Usuarios
+                  </span>
+                </NavLink>
+              )}
+              
+              {hasPermission(role, MODULES.BITACORA, "VIEW") && (
+                <NavLink to="/bitacora" className={linkClass}>
+                  <span className="material-symbols-outlined">history</span>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ fontFamily: "Manrope, sans-serif" }}
+                  >
+                    Bitacora
+                  </span>
+                </NavLink>
+              )}
+              
+              {hasPermission(role, MODULES.PARAMETROS, "VIEW") && (
+                <NavLink to="/datosvariables" className={linkClass}>
+                  <span className="material-symbols-outlined">tune</span>
+                  <span
+                    className="text-sm font-medium"
+                    style={{ fontFamily: "Manrope, sans-serif" }}
+                  >
+                    Parametros
+                  </span>
+                </NavLink>
+              )}
             </>
           )}
         </nav>

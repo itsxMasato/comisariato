@@ -2,8 +2,15 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { collection, onSnapshot, doc, setDoc, updateDoc, Timestamp, deleteDoc, addDoc } from "firebase/firestore";
 import { db, auth } from "../firebase/firebase";
+import { useAuth } from "../auth/AuthProvider";
+import { hasPermission, MODULES, ACTIONS } from "../utils/roles";
 
 export default function Empleados() {
+    const { role } = useAuth();
+    const canCreate = hasPermission(role, MODULES.EMPLEADOS, ACTIONS.CREATE);
+    const canEdit = hasPermission(role, MODULES.EMPLEADOS, ACTIONS.EDIT);
+    const canDelete = hasPermission(role, MODULES.EMPLEADOS, ACTIONS.DELETE);
+
     const [employeesData, setEmployeesData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -322,13 +329,15 @@ export default function Empleados() {
                                 ))}
                             </div>
                         </div>
-                        <button
-                            onClick={() => handleOpenModal()}
-                            className="text-white px-6 py-3 rounded-xl flex flex-1 sm:flex-none justify-center items-center gap-2 font-bold shadow-lg transition-all active:scale-95 bg-gradient-to-r from-green-900 to-green-700"
-                        >
-                            <span className="material-symbols-outlined">person_add</span>
-                            Nuevo Empleado
-                        </button>
+                        {canCreate && (
+                            <button
+                                onClick={() => handleOpenModal()}
+                                className="text-white px-6 py-3 rounded-xl flex flex-1 sm:flex-none justify-center items-center gap-2 font-bold shadow-lg transition-all active:scale-95 bg-gradient-to-r from-green-900 to-green-700"
+                            >
+                                <span className="material-symbols-outlined">person_add</span>
+                                Nuevo Empleado
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -417,8 +426,12 @@ export default function Empleados() {
                                             >
                                                 <span className="material-symbols-outlined text-sm">visibility</span>
                                             </button>
-                                            <button onClick={() => handleOpenModal(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><span className="material-symbols-outlined text-sm">edit</span></button>
-                                            <button onClick={() => handleDeleteEmployee(emp)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
+                                            {canEdit && (
+                                                <button onClick={() => handleOpenModal(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><span className="material-symbols-outlined text-sm">edit</span></button>
+                                            )}
+                                            {canDelete && (
+                                                <button onClick={() => handleDeleteEmployee(emp)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

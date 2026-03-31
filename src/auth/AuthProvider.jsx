@@ -5,7 +5,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, collection } from "firebase/firestore";
+import { setDynamicRoles } from "../utils/roles";
 
 const AuthContext = createContext();
 
@@ -15,9 +16,17 @@ export const AuthProvider = ({ children }) => {
   const [userName, setUserName] = useState("Usuario");
   const [photoURL, setPhotoURL] = useState("");
   const [loading, setLoading] = useState(true);
+  const [rolesLoaded, setRolesLoaded] = useState(false);
 
   useEffect(() => {
     let unsubscribeDoc = null;
+    let unsubscribeRoles = null;
+
+    unsubscribeRoles = onSnapshot(collection(db, "roles"), (snapshot) => {
+      const rolesData = snapshot.docs.map(doc => doc.data());
+      setDynamicRoles(rolesData);
+      setRolesLoaded(true);
+    });
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setLoading(true);
@@ -75,6 +84,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       unsubscribeAuth();
       if (unsubscribeDoc) unsubscribeDoc();
+      if (unsubscribeRoles) unsubscribeRoles();
     };
   }, []);
 
@@ -88,7 +98,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{ user, role, userName, photoURL, login, logout, loading }}>
-      {!loading && children}
+      {!loading && rolesLoaded && children}
     </AuthContext.Provider>
   );
 };

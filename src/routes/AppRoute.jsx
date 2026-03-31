@@ -1,7 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "../auth/ProtectedRoute";
 import AdminLayout from "../layouts/AdminLayout";
-import { AdminRoute } from "../auth/AdminRoute";
+import { RoleRoute } from "../auth/AdminRoute";
+import { MODULES } from "../utils/roles";
 import { Toaster } from "sonner";
 
 import Login from "../pages/Login";
@@ -53,49 +54,81 @@ export default function AppRouter() {
           }
         >
           {/* Dashboard */}
-          <Route index element={<Dashboard />} />
+          <Route index element={
+            <RoleRoute moduleName={MODULES.DASHBOARD}>
+              <Dashboard />
+            </RoleRoute>
+          } />
           <Route path="perfil" element={<Perfil />} />
 
           {/* Productos */}
-          <Route path="productos" element={<Productos />} />
+          <Route path="productos" element={
+            <RoleRoute moduleName={MODULES.PRODUCTOS}>
+              <Productos />
+            </RoleRoute>
+          } />
 
           {/* Empleados */}
-          <Route path="empleados" element={<Empleados />} />
+          <Route path="empleados" element={
+            <RoleRoute moduleName={MODULES.EMPLEADOS}>
+              <Empleados />
+            </RoleRoute>
+          } />
 
           {/* Créditos */}
-          <Route path="creditos" element={<Creditos />} />
-          <Route path="creditos/nuevo" element={<NuevoCredito />} />
+          <Route path="creditos" element={
+            <RoleRoute moduleName={MODULES.CREDITOS} requiredAction={"VIEW"}>
+              <Creditos />
+            </RoleRoute>
+          } />
+          <Route path="creditos/nuevo" element={
+            <RoleRoute moduleName={MODULES.CREDITOS} requiredAction={"CREATE"}>
+              <NuevoCredito />
+            </RoleRoute>
+          } />
 
           {/* Cuotas / Pagos */}
-          <Route path="cuotas" element={<Cuotas />} />
-          <Route path="cuotas/pagar" element={<RegistrarPago />} />
+          <Route path="cuotas" element={
+            <RoleRoute moduleName={MODULES.CUOTAS} requiredAction={"VIEW"}>
+              <Cuotas />
+            </RoleRoute>
+          } />
+          <Route path="cuotas/pagar" element={
+            <RoleRoute moduleName={MODULES.CUOTAS} requiredAction={"EDIT"}>
+              <RegistrarPago />
+            </RoleRoute>
+          } />
 
           {/* Reservas (app móvil → portal) */}
-          <Route path="reservas" element={<Reservas />} />
+          <Route path="reservas" element={
+            <RoleRoute moduleName={MODULES.RESERVAS}>
+              <Reservas />
+            </RoleRoute>
+          } />
 
           {/* Usuarios del sistema — solo admin */}
           <Route
             path="usuarios"
             element={
-              <AdminRoute>
+              <RoleRoute moduleName={MODULES.USUARIOS}>
                 <Usuarios />
-              </AdminRoute>
+              </RoleRoute>
             }
           />
           <Route
             path="bitacora"
             element={
-              <AdminRoute>
+              <RoleRoute moduleName={MODULES.BITACORA}>
                 <Bitacora />
-              </AdminRoute>
+              </RoleRoute>
             }
           />
           <Route
             path="datosvariables"
             element={
-              <AdminRoute>
+              <RoleRoute moduleName={MODULES.PARAMETROS}>
                 <DatosVariables />
-              </AdminRoute>
+              </RoleRoute>
             }
           />
 

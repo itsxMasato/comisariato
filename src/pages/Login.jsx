@@ -6,6 +6,7 @@ import { sileo } from "sileo";
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -196,13 +197,24 @@ export default function Login() {
                 </span>
                 <input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full bg-slate-100 py-4 pl-8 pr-4 text-gray-900 placeholder:text-slate-400 text-sm border-0 border-b-2 border-slate-200 focus:border-green-700 focus:outline-none focus:ring-0 focus:bg-slate-50 transition-colors"
+                  className="w-full bg-slate-100 py-4 pl-8 pr-12 text-gray-900 placeholder:text-slate-400 text-sm border-0 border-b-2 border-slate-200 focus:border-green-700 focus:outline-none focus:ring-0 focus:bg-slate-50 transition-colors"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-green-700 transition-colors"
+                  title={showPassword ? "Ocultar Contraseña" : "Mostrar Contraseña"}
+                  tabIndex="-1"
+                >
+                  <span className="material-symbols-outlined text-lg pointer-events-none">
+                    {showPassword ? "visibility_off" : "visibility"}
+                  </span>
+                </button>
               </div>
             </div>
 
