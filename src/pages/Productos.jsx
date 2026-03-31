@@ -276,7 +276,7 @@ export default function Productos() {
         formData.get("img_url") ||
         "https://via.placeholder.com/150?text=Sin+Foto",
       descripcion: "",
-      tipoModificacion: selectedProduct ? "Actualización" : "Creación",
+      tipoModificacion: selectedProduct ? "Actualización de Producto" : "Creación de Producto",
       usuarioModifico: auth.currentUser?.email || "Admin",
       fechaModificacion: Timestamp.now(),
     };
@@ -536,7 +536,7 @@ export default function Productos() {
                           await updateDoc(docRef, {
                             estado: p.active ? "Inactivo" : "Activo",
                             fechaModificacion: Timestamp.now(),
-                            tipoModificacion: "Cambio de Estado",
+                            tipoModificacion: "Cambio de Estado de Producto",
                             usuarioModifico: auth.currentUser?.email || "Admin",
                           });
                         }}

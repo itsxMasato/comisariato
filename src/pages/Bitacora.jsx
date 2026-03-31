@@ -36,11 +36,14 @@ const obtenerBitacoraCompleta = async () => {
 
             snap.forEach((doc) => {
                 const data = doc.data();
-                // Algunos módulos usan fechaModificacion, otros fechaActualizacion o fechaRegistro
-                const fecha = data.fechaModificacion || data.fechaActualizacion || data.fechaRegistro;
+                // Algunos módulos usan fechaModificacion, otros fechaActualizacion o fechaRegistro o updatedDate/createdAt
+                let fechaRaw = data.fechaModificacion || data.fechaActualizacion || data.fechaRegistro || data.updatedDate || data.createdAt;
+                
+                // Extraer el objeto Date subyacente de serverTimestamp si es un timestamp the firestore
+                const fecha = fechaRaw;
 
                 if (fecha) {
-                    const esEdicion = !!(data.fechaModificacion || data.fechaActualizacion);
+                    const esEdicion = !!(data.fechaModificacion || data.fechaActualizacion || data.updatedDate);
                     let accionGenerada = data.tipoModificacion || "N/A";
 
                     listaBitacora.push({

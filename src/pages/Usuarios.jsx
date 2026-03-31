@@ -240,11 +240,11 @@ export default function Usuarios() {
   const roles =
     rolesData.length > 0
       ? rolesData.map((r) => ({
-          id: r.id,
-          name: r.nombre || "",
-          permissions: r.permisos || [],
-          estado: r.estado || "Activo",
-        }))
+        id: r.id,
+        name: r.nombre || "",
+        permissions: r.permisos || [],
+        estado: r.estado || "Activo",
+      }))
       : INITIAL_ROLES;
 
   // Roles activos — únicamente para selects de asignación
@@ -316,8 +316,8 @@ export default function Usuarios() {
               </thead>
               <tbody class="text-[11px]">
                 ${listToExport
-                  .map(
-                    (p) => `
+        .map(
+          (p) => `
                   <tr class="border-b border-gray-100">
                     <td class="px-4 py-3 font-bold text-gray-800">${p.name}</td>
                     <td class="px-4 py-3 font-mono text-gray-400">${p.email}</td>
@@ -326,8 +326,8 @@ export default function Usuarios() {
                     <td class="px-4 py-3 text-right text-gray-400">${p.lastAccess || "N/A"}</td>
                   </tr>
                 `,
-                  )
-                  .join("")}
+        )
+        .join("")}
               </tbody>
             </table>
           </section>
@@ -390,9 +390,9 @@ export default function Usuarios() {
   const assignableEmpleados = empleadosData.filter((emp) => {
     const isActivo = emp.estado === "Activo" || emp.estado === "active";
     const yaAsignado = usersData.some(
-      (u) => 
-        (u.empleadoId === emp.id && u.empleadoId) || 
-        (u.uid === emp.id) || 
+      (u) =>
+        (u.empleadoId === emp.id && u.empleadoId) ||
+        (u.uid === emp.id) ||
         (u.correo && u.correo === emp.correo)
     );
     return isActivo && !yaAsignado;
@@ -425,7 +425,7 @@ export default function Usuarios() {
         await updateDoc(doc(db, "usuarios", id), {
           estado: next,
           fechaActualizacion: Timestamp.now(),
-          tipoModificacion: "Cambio Estado",
+          tipoModificacion: "Actualización de Usuario",
           usuarioModifico: auth.currentUser?.email || "Admin",
         });
         setConfirmData(null);
@@ -469,12 +469,12 @@ export default function Usuarios() {
         correo: newUser.email,
         rol: newUser.role || activeRoles[0]?.name,
         estado: "Activo",
-        tipoModificacion: "Creación",
+        tipoModificacion: "Creación de Usuario",
         usuarioModifico: auth.currentUser?.email || "Admin",
         fechaRegistro: Timestamp.now(),
         fechaActualizacion: Timestamp.now(),
       });
-      
+
       // Intentar actualizar también al empleado con el uid de su nuevo usuario
       if (newUser.empleadoId) {
         try {
@@ -507,6 +507,7 @@ export default function Usuarios() {
       permisos: updated.permissions,
       estado: updated.estado, // ✅ guarda estado
       fechaModificacion: Timestamp.now(),
+      tipoModificacion: "Cambio de Rol",
       usuarioModifico: auth.currentUser?.email || "Admin",
     });
     setEditRole(null);
@@ -532,6 +533,7 @@ export default function Usuarios() {
         await updateDoc(doc(db, "roles", role.id), {
           estado: next,
           fechaModificacion: Timestamp.now(),
+          tipoModificacion: "Cambio de Rol",
           usuarioModifico: auth.currentUser?.email || "Admin",
         });
         setConfirmData(null);
@@ -553,6 +555,7 @@ export default function Usuarios() {
       permisos: newRole.permissions,
       estado: "Activo", // ✅ siempre activo al crear
       fechaRegistro: Timestamp.now(),
+      tipoModificacion: "Asignación de Rol",
       usuarioModifico: auth.currentUser?.email || "Admin",
     });
     setNewRolePanel(false);
@@ -952,11 +955,10 @@ export default function Usuarios() {
                       </button>
                       <button
                         onClick={() => toggleRoleStatus(role)}
-                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${
-                          isDisabled
-                            ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
-                            : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
-                        }`}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${isDisabled
+                          ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
+                          : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
+                          }`}
                       >
                         <span className="material-symbols-outlined text-sm">
                           {isDisabled ? "lock_open" : "lock"}
@@ -998,7 +1000,7 @@ export default function Usuarios() {
               <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 expand_more
               </span>
-              
+
               {empDropdownOpen && (
                 <div className="absolute z-50 mt-2 w-full max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl">
                   {filteredAssignables.length === 0 ? (
@@ -1234,13 +1236,12 @@ export default function Usuarios() {
                     <button
                       key={s}
                       onClick={() => setEditRole({ ...editRole, estado: s })}
-                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${
-                        (editRole.estado || "Activo") === s
-                          ? s === "Activo"
-                            ? "bg-green-800 text-white"
-                            : "bg-rose-600 text-white"
-                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                      }`}
+                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${(editRole.estado || "Activo") === s
+                        ? s === "Activo"
+                          ? "bg-green-800 text-white"
+                          : "bg-rose-600 text-white"
+                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                        }`}
                     >
                       {s}
                     </button>
