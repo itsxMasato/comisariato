@@ -51,10 +51,20 @@ export default function Dashboard() {
   const [cuotasData, setCuotasData] = useState([]);
 
   useEffect(() => {
-    const unsubE = onSnapshot(collection(db, "empleados"), s => setEmpleadosData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubC = onSnapshot(collection(db, "creditos"), s => setCreditosData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const unsubQ = onSnapshot(collection(db, "cuotas"), s => setCuotasData(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-    return () => { unsubE(); unsubC(); unsubQ(); };
+    const unsubE = onSnapshot(collection(db, "empleados"), (s) =>
+      setEmpleadosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubC = onSnapshot(collection(db, "creditos"), (s) =>
+      setCreditosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubQ = onSnapshot(collection(db, "cuotas"), (s) =>
+      setCuotasData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    return () => {
+      unsubE();
+      unsubC();
+      unsubQ();
+    };
   }, []);
 
   useEffect(() => {
@@ -74,14 +84,16 @@ export default function Dashboard() {
     const year = parseInt(yearStr);
     const month = parseInt(monthStr);
 
-    const creditosMes = creditosData.filter(c => {
-       const date = c.fechaAutoriza?.toDate ? c.fechaAutoriza.toDate() : new Date();
-       return date.getFullYear() === year && (date.getMonth() + 1) === month;
+    const creditosMes = creditosData.filter((c) => {
+      const date = c.fechaAutoriza?.toDate
+        ? c.fechaAutoriza.toDate()
+        : new Date();
+      return date.getFullYear() === year && date.getMonth() + 1 === month;
     });
 
-    const cuotasMes = cuotasData.filter(c => {
-       const date = c.fecha?.toDate ? c.fecha.toDate() : new Date();
-       return date.getFullYear() === year && (date.getMonth() + 1) === month;
+    const cuotasMes = cuotasData.filter((c) => {
+      const date = c.fecha?.toDate ? c.fecha.toDate() : new Date();
+      return date.getFullYear() === year && date.getMonth() + 1 === month;
     });
 
     const weeklyCompilation = [1, 2, 3, 4].map((week) => ({
@@ -90,57 +102,85 @@ export default function Dashboard() {
       cobros: 0,
     }));
 
-    creditosMes.forEach(tx => {
-       const date = tx.fechaAutoriza?.toDate ? tx.fechaAutoriza.toDate() : new Date();
-       const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
-       weeklyCompilation[bucket].solicitudes += Number(tx.totalCredito) || 0;
+    creditosMes.forEach((tx) => {
+      const date = tx.fechaAutoriza?.toDate
+        ? tx.fechaAutoriza.toDate()
+        : new Date();
+      const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
+      weeklyCompilation[bucket].solicitudes += Number(tx.totalCredito) || 0;
     });
 
-    cuotasMes.forEach(tx => {
-       const date = tx.fecha?.toDate ? tx.fecha.toDate() : new Date();
-       const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
-       // If saldoPendiente === 0 it means it's paid (or practically speaking, the 'monto' is what we collected)
-       weeklyCompilation[bucket].cobros += Number(tx.monto) || 0;
+    cuotasMes.forEach((tx) => {
+      const date = tx.fecha?.toDate ? tx.fecha.toDate() : new Date();
+      const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
+      // If saldoPendiente === 0 it means it's paid (or practically speaking, the 'monto' is what we collected)
+      weeklyCompilation[bucket].cobros += Number(tx.monto) || 0;
     });
 
-    const pagosMensuales = cuotasMes.reduce((sum, tx) => sum + (Number(tx.monto) || 0), 0);
-    const revisionesPendientes = creditosData.filter(c => c.estado === "Pendiente").length;
-    
+    const pagosMensuales = cuotasMes.reduce(
+      (sum, tx) => sum + (Number(tx.monto) || 0),
+      0,
+    );
+    const revisionesPendientes = creditosData.filter(
+      (c) => c.estado === "Pendiente",
+    ).length;
+
     const reservasDelMes = creditosMes.length;
-    const creditosActivos = creditosData.filter(c => c.estado === "Activo").length;
-    
+    const creditosActivos = creditosData.filter(
+      (c) => c.estado === "Activo",
+    ).length;
+
     // Meta example calculation. Let's make it hit 85 if we met goals.
-    const expected = cuotasMes.reduce((sum, tx) => sum + (Number(tx.monto) + Number(tx.saldoPendiente || 0)), 0);
-    const metaCobranza = expected > 0 ? Math.round((pagosMensuales / expected) * 100) : 100;
+    const expected = cuotasMes.reduce(
+      (sum, tx) => sum + (Number(tx.monto) + Number(tx.saldoPendiente || 0)),
+      0,
+    );
+    const metaCobranza =
+      expected > 0 ? Math.round((pagosMensuales / expected) * 100) : 100;
 
     const approvals = [...creditosData]
       .sort((a, b) => {
-         const dA = a.fechaAutoriza?.toDate ? a.fechaAutoriza.toDate().getTime() : 0;
-         const dB = b.fechaAutoriza?.toDate ? b.fechaAutoriza.toDate().getTime() : 0;
-         return dB - dA;
+        const dA = a.fechaAutoriza?.toDate
+          ? a.fechaAutoriza.toDate().getTime()
+          : 0;
+        const dB = b.fechaAutoriza?.toDate
+          ? b.fechaAutoriza.toDate().getTime()
+          : 0;
+        return dB - dA;
       })
       .slice(0, 5)
       .map((tx, idx) => {
-         const emp = empleadosData.find(e => e.empleadoId === tx.empleadoId || e.id === tx.empleadoId) || {};
-         return {
-           name: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "Desconocido",
-           id: tx.creditoId || tx.id.substring(0,6).toUpperCase(),
-           amount: formatAmount(tx.totalCredito || 0),
-           dept: emp.departamento || "N/A",
-           status: tx.estado || "PENDIENTE",
-           statusClass: tx.estado === "Activo" ? "bg-green-100 text-green-800" : (tx.estado === "Finalizado" ? "bg-sky-100 text-sky-800" : "bg-orange-100 text-orange-800"),
-           dot: tx.estado === "Activo" ? "bg-green-600" : "bg-orange-600",
-         };
+        const emp =
+          empleadosData.find(
+            (e) => e.empleadoId === tx.empleadoId || e.id === tx.empleadoId,
+          ) || {};
+        return {
+          name: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "Desconocido",
+          id: tx.creditoId || tx.id.substring(0, 6).toUpperCase(),
+          amount: formatAmount(tx.totalCredito || 0),
+          dept: emp.departamento || "N/A",
+          status: tx.estado || "PENDIENTE",
+          statusClass:
+            tx.estado === "Activo"
+              ? "bg-green-100 text-green-800"
+              : tx.estado === "Finalizado"
+                ? "bg-sky-100 text-sky-800"
+                : "bg-orange-100 text-orange-800",
+          dot: tx.estado === "Activo" ? "bg-green-600" : "bg-orange-600",
+        };
       });
 
-    const empleadosActivos = empleadosData.filter(e => e.estado === "active" || e.estado === "Activo").length;
+    const empleadosActivos = empleadosData.filter(
+      (e) => e.estado === "active" || e.estado === "Activo",
+    ).length;
 
     return {
       creditosActivos,
       revisionesPendientes,
       pagosMensuales,
       metaCobranza,
-      empleadosActivos: empleadosActivos > 0 ? empleadosActivos : EMPLEADOS_ACTIVOS_BASE,
+      empleadosActivos:
+        empleadosActivos > 0 ? empleadosActivos : EMPLEADOS_ACTIVOS_BASE,
       empleadosConReserva: reservasDelMes,
       weeklyCompilation,
       approvals,
@@ -202,8 +242,6 @@ export default function Dashboard() {
       transition={{ duration: 0.4, ease: "easeOut" }}
       className="bg-gray-50 text-gray-900 space-y-8"
     >
-
-
       <section className="pt-2 md:pt-3 mb-10">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -272,7 +310,9 @@ export default function Dashboard() {
                 >
                   Actividad Semanal
                 </h4>
-                <p className="text-sm text-slate-500">Flujo de creditos vs cobranza</p>
+                <p className="text-sm text-slate-500">
+                  Flujo de creditos vs cobranza
+                </p>
                 <div className="mt-2 flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1 text-slate-500">
                     <span className="h-2 w-2 rounded-full bg-green-900/30" />
@@ -334,7 +374,10 @@ export default function Dashboard() {
               >
                 Aprobaciones Recientes
               </h4>
-              <Link to="/creditos" className="text-green-800 text-xs font-bold hover:underline">
+              <Link
+                to="/creditos"
+                className="text-green-800 text-xs font-bold hover:underline"
+              >
                 Ver Todo
               </Link>
             </div>
@@ -342,30 +385,45 @@ export default function Dashboard() {
               <table className="w-full text-left">
                 <thead className="bg-slate-50 border-y border-slate-100">
                   <tr>
-                    {["Empleado", "Monto", "Departamento", "Estado"].map((head, i) => (
-                      <th
-                        key={head}
-                        className={`px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest ${i === 3 ? "text-right" : ""}`}
-                      >
-                        {head}
-                      </th>
-                    ))}
+                    {["Empleado", "Monto", "Departamento", "Estado"].map(
+                      (head, i) => (
+                        <th
+                          key={head}
+                          className={`px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest ${i === 3 ? "text-right" : ""}`}
+                        >
+                          {head}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {monthlyData.approvals.map((row) => (
-                    <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
+                    <tr
+                      key={row.id}
+                      className="hover:bg-slate-50 transition-colors group"
+                    >
                       <td className="px-8 py-4">
-                        <p className="text-sm font-bold text-gray-900">{row.name}</p>
-                        <p className="text-[10px] text-slate-400">ID: {row.id}</p>
+                        <p className="text-sm font-bold text-gray-900">
+                          {row.name}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          ID: {row.id}
+                        </p>
                       </td>
-                      <td className="px-8 py-4 text-sm font-bold">{row.amount}</td>
-                      <td className="px-8 py-4 text-sm text-slate-500">{row.dept}</td>
+                      <td className="px-8 py-4 text-sm font-bold">
+                        {row.amount}
+                      </td>
+                      <td className="px-8 py-4 text-sm text-slate-500">
+                        {row.dept}
+                      </td>
                       <td className="px-8 py-4 text-right">
                         <span
                           className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black ${row.statusClass}`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full ${row.dot}`} />
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${row.dot}`}
+                          />
                           {row.status}
                         </span>
                       </td>
@@ -391,7 +449,9 @@ export default function Dashboard() {
               >
                 Reporte Semanal
               </h5>
-              <p className="text-green-200 text-xs mt-1">Indicadores del comisariato actualizados</p>
+              <p className="text-green-200 text-xs mt-1">
+                Indicadores del comisariato actualizados
+              </p>
               <div className="flex gap-2 mt-4">
                 <span className="px-2 py-1 bg-white/20 backdrop-blur-md rounded-lg text-white text-[10px] font-bold">
                   PDF
@@ -416,20 +476,28 @@ export default function Dashboard() {
             <hr className="my-6 border-slate-200" />
             <div className="space-y-4">
               <div className="flex justify-between items-center text-sm">
-                <span className="font-medium text-slate-500">Empleados activos</span>
+                <span className="font-medium text-slate-500">
+                  Empleados activos
+                </span>
                 <span className="font-black text-slate-900">
                   {monthlyData.empleadosActivos.toLocaleString("es-HN")}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="font-medium text-slate-500">Reservas del mes</span>
+                <span className="font-medium text-slate-500">
+                  Reservas del mes
+                </span>
                 <span className="font-black text-slate-900">
                   {monthlyData.empleadosConReserva.toLocaleString("es-HN")}
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="font-medium text-slate-500">Meta de cobranza</span>
-                <span className="font-black text-green-800">{monthlyData.metaCobranza}%</span>
+                <span className="font-medium text-slate-500">
+                  Meta de cobranza
+                </span>
+                <span className="font-black text-green-800">
+                  {monthlyData.metaCobranza}%
+                </span>
               </div>
             </div>
           </article>
