@@ -4,7 +4,6 @@ import { collection, onSnapshot, doc, setDoc, updateDoc, Timestamp } from "fireb
 import { db, auth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
-// ÔöÇÔöÇ Datos Iniciales ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 const INITIAL_PRODUCTS = [
   {
     id: 1,
