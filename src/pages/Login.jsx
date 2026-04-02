@@ -2,12 +2,14 @@ import React, { useState } from "react";
 import { useAuth } from "../auth/AuthProvider";
 import { useNavigate } from "react-router-dom";
 import { sileo } from "sileo";
+import LoginTransition from "../components/LoginTransition";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showTransition, setShowTransition] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -18,8 +20,8 @@ export default function Login() {
     try {
       console.log("2. Llamando a Firebase...");
       await login(email, password);
-      console.log("3. ¡Login exitoso! Redirigiendo...");
-      navigate("/");
+      console.log("3. ¡Login exitoso! Iniciando transición...");
+      setShowTransition(true);
     } catch (err) {
       console.error("Error capturado:", err.code);
       if (err.code === "auth/invalid-credential") {
@@ -39,8 +41,15 @@ export default function Login() {
   };
 
   return (
-    <div className="bg-gray-50 flex items-center justify-center min-h-screen relative overflow-hidden">
-      {/* Decorative blobs */}
+    <>
+      {showTransition && (
+        <LoginTransition
+          userName={email.split("@")[0] || "Usuario"}
+          onDone={() => navigate("/")}
+        />
+      )}
+      <div className="bg-gray-50 flex items-center justify-center min-h-screen relative overflow-hidden">
+        {/* Decorative blobs */}
       <div className="absolute -top-24 -left-24 w-96 h-96 bg-green-900/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-amber-900/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -303,5 +312,6 @@ export default function Login() {
         </div>
       </main>
     </div>
+    </>
   );
 }
