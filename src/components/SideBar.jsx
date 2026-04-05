@@ -59,9 +59,6 @@ export default function SideBar({ isOpen, setIsOpen }) {
             </span>
             Comisariato
           </h1>
-          <p className="text-xs font-medium text-green-100/60 mt-0.5">
-            {role || "Admin Portal"}
-          </p>
         </div>
 
         {/* Nav */}
@@ -215,7 +212,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
                 className="text-white text-xs font-bold truncate"
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
-                {user?.displayName || "Admin"}
+                {role || "Admin"}
               </p>
               <p className="text-green-100/50 text-[10px] truncate">
                 {user?.email || ""}
