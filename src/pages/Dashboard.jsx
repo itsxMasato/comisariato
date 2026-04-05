@@ -49,6 +49,7 @@ export default function Dashboard() {
   const [empleadosData, setEmpleadosData] = useState([]);
   const [creditosData, setCreditosData] = useState([]);
   const [cuotasData, setCuotasData] = useState([]);
+  const [productosData, setProductosData] = useState([]);
 
   useEffect(() => {
     const unsubE = onSnapshot(collection(db, "empleados"), (s) =>
@@ -60,10 +61,14 @@ export default function Dashboard() {
     const unsubQ = onSnapshot(collection(db, "cuotas"), (s) =>
       setCuotasData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
     );
+    const unsubP = onSnapshot(collection(db, "productos"), (s) =>
+      setProductosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
     return () => {
       unsubE();
       unsubC();
       unsubQ();
+      unsubP();
     };
   }, []);
 
@@ -235,7 +240,744 @@ export default function Dashboard() {
     },
   ];
 
-  return (
+  // ──────────────────────────────────────────────────────
+  // DASHBOARD PARA CADA ROL
+  // ──────────────────────────────────────────────────────
+
+  // CEO: Solo métricas de alto nivel
+  const renderDashboardCEO = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="bg-gray-50 text-gray-900 space-y-8"
+    >
+      <section className="pt-2 md:pt-3 mb-10">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2
+              className="text-3xl font-black text-slate-900 tracking-tight"
+              style={{ fontFamily: "Manrope, sans-serif" }}
+            >
+              Tablero Ejecutivo
+            </h2>
+            <p className="text-slate-500 font-medium">
+              Indicadores clave del desempeño operativo.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              Mes actual
+            </label>
+            <span className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-800 capitalize">
+              {monthLabel}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {kpis.map((kpi) => (
+          <article
+            key={kpi.label}
+            className={`bg-white p-6 rounded-2xl shadow-sm border-l-4 ${kpi.border}`}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className={`p-2 rounded-xl ${kpi.iconBg}`}>
+                <span className="material-symbols-outlined">{kpi.icon}</span>
+              </div>
+            </div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+              {kpi.label}
+            </p>
+            <h3
+              className="text-3xl font-extrabold text-gray-900 mt-1"
+              style={{ fontFamily: "Manrope, sans-serif" }}
+            >
+              {kpi.value}
+            </h3>
+            <p className="text-slate-400 text-xs mt-2 font-medium">{kpi.sub}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100 p-6">
+          <h4
+            className="text-xl font-bold text-gray-900 mb-6"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Resumen Mensual
+          </h4>
+          <div className="space-y-6">
+            <div>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-2">
+                Meta de Cobranza
+              </p>
+              <div className="flex items-end gap-2">
+                <h3 className="text-4xl font-black text-green-700">
+                  {monthlyData.metaCobranza}%
+                </h3>
+                <p className="text-sm text-slate-500 mb-1">de objetivo</p>
+              </div>
+            </div>
+            <hr className="border-slate-200" />
+            <div className="flex justify-between items-center text-sm">
+              <span className="font-medium text-slate-500">Pagos Recaudados</span>
+              <span className="font-black text-slate-900">
+                {formatMoney(monthlyData.pagosMensuales / 1000)}
+              </span>
+            </div>
+            <hr className="border-slate-200" />
+            <div className="flex justify-between items-center text-sm">
+              <span className="font-medium text-slate-500">Créditos en Curso</span>
+              <span className="font-black text-slate-900">
+                {monthlyData.creditosActivos}
+              </span>
+            </div>
+          </div>
+        </article>
+
+        <article className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl overflow-hidden shadow-sm border border-blue-200 p-6">
+          <h4
+            className="text-xl font-bold text-blue-900 mb-4"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Análisis Rápido
+          </h4>
+          <div className="space-y-4">
+            <div className="bg-white/60 backdrop-blur p-4 rounded-xl">
+              <p className="text-blue-700 text-xs font-bold uppercase mb-1">
+                Empleados Activos
+              </p>
+              <p className="text-2xl font-black text-blue-900">
+                {monthlyData.empleadosActivos}/{EMPLEADOS_ACTIVOS_BASE}
+              </p>
+            </div>
+            <div className="bg-white/60 backdrop-blur p-4 rounded-xl">
+              <p className="text-blue-700 text-xs font-bold uppercase mb-1">
+                Revisiones Pendientes
+              </p>
+              <p className="text-2xl font-black text-orange-600">
+                {monthlyData.revisionesPendientes}
+              </p>
+            </div>
+            <div className="bg-white/60 backdrop-blur p-4 rounded-xl">
+              <p className="text-blue-700 text-xs font-bold uppercase mb-1">
+                Nuevas Solicitudes
+              </p>
+              <p className="text-2xl font-black text-green-700">
+                {monthlyData.empleadosConReserva}
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
+    </motion.div>
+  );
+
+  // EDITOR CREDITOS: Enfocado en créditos y cuotas
+  const renderDashboardEditorCreditos = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="bg-gray-50 text-gray-900 space-y-8"
+    >
+      <section className="pt-2 md:pt-3 mb-10">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2
+              className="text-3xl font-black text-slate-900 tracking-tight"
+              style={{ fontFamily: "Manrope, sans-serif" }}
+            >
+              Gestión de Créditos
+            </h2>
+            <p className="text-slate-500 font-medium">
+              Control de solicitudes, cuotas y recuperación de cartera.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              Período
+            </label>
+            <span className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 capitalize">
+              {monthLabel}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-800">
+          <div className="p-2 rounded-xl bg-green-100 text-green-800 w-fit mb-4">
+            <span className="material-symbols-outlined">trending_up</span>
+          </div>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+            Créditos Activos
+          </p>
+          <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+            {monthlyData.creditosActivos}
+          </h3>
+          <p className="text-slate-400 text-xs mt-2 font-medium">
+            En seguimiento y cobranza
+          </p>
+        </article>
+
+        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-orange-600">
+          <div className="p-2 rounded-xl bg-orange-100 text-orange-800 w-fit mb-4">
+            <span className="material-symbols-outlined">pending_actions</span>
+          </div>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+            Pendientes de Revisión
+          </p>
+          <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+            {monthlyData.revisionesPendientes}
+          </h3>
+          <p className="text-slate-400 text-xs mt-2 font-medium">
+            Requieren aprobación
+          </p>
+        </article>
+
+        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
+          <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
+            <span className="material-symbols-outlined">attach_money</span>
+          </div>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+            Cobranza del Mes
+          </p>
+          <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+            {formatMoney(monthlyData.pagosMensuales / 1000)}
+          </h3>
+          <p className="text-slate-400 text-xs mt-2 font-medium">
+            Meta: {monthlyData.metaCobranza}%
+          </p>
+        </article>
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <article className="bg-slate-100 p-8 rounded-2xl relative overflow-hidden">
+          <h4
+            className="text-xl font-bold text-gray-900 mb-6"
+            style={{ fontFamily: "Manrope, sans-serif" }}
+          >
+            Actividad Semanal
+          </h4>
+          <p className="text-sm text-slate-500 mb-4">
+            Solicitudes vs Cobranza
+          </p>
+          <div className="flex items-end justify-between h-40 gap-3 pt-4">
+            {monthlyData.weeklyCompilation.map((week) => (
+              <div
+                key={week.label}
+                className="flex-1 bg-amber-900/10 rounded-t-lg relative group"
+                style={{
+                  height: `${Math.max(32, (week.solicitudes / maxSolicitudes) * 100)}%`,
+                }}
+              >
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-black text-slate-700">
+                  {formatCompactAmount(week.solicitudes)}
+                </div>
+                <div
+                  className="absolute inset-x-0 bottom-0 bg-amber-800/40 rounded-t-lg transition-all group-hover:bg-amber-800/60"
+                  style={{
+                    height: `${
+                      week.solicitudes > 0
+                        ? Math.max(15, (week.cobros / week.solicitudes) * 100)
+                        : 15
+                    }%`,
+                  }}
+                />
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-amber-900/80">
+                  {formatCompactAmount(week.cobros)}
+                </div>
+                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400">
+                  {week.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
+          <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-slate-100">
+            <h4
+              className="text-lg font-bold text-gray-900"
+              style={{ fontFamily: "Manrope, sans-serif" }}
+            >
+              Últimas Aprobaciones
+            </h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  {["Empleado", "Monto", "Dpto.", "Estado"].map((head) => (
+                    <th
+                      key={head}
+                      className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest"
+                    >
+                      {head}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {monthlyData.approvals.slice(0, 3).map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="text-xs font-bold text-gray-900">
+                        {row.name.split(" ").slice(0, 2).join(" ")}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold">
+                      {row.amount}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500">
+                      {row.dept}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`text-[10px] font-black px-2 py-1 rounded-full ${row.statusClass}`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
+            <Link
+              to="/creditos"
+              className="text-green-800 text-xs font-bold hover:underline"
+            >
+              Ver todos los créditos →
+            </Link>
+          </div>
+        </article>
+      </section>
+    </motion.div>
+  );
+
+  // EDITOR INVENTARIO: Enfocado en productos
+  const renderDashboardEditorInventario = () => {
+    const productosPorCategoria = {};
+    const totalProductos = productosData.length;
+    const productosActivos = productosData.filter(
+      (p) => p.estado === "Activo" || p.estado === "active",
+    ).length;
+    const productosBajoStock = productosData.filter(
+      (p) => Number(p.stock || 0) < 10,
+    ).length;
+
+    productosData.forEach((p) => {
+      const cat = p.categoria || "Sin Categoría";
+      if (!productosPorCategoria[cat]) {
+        productosPorCategoria[cat] = 0;
+      }
+      productosPorCategoria[cat]++;
+    });
+
+    const topProductos = [...productosData]
+      .sort((a, b) => (Number(b.precio) || 0) - (Number(a.precio) || 0))
+      .slice(0, 5);
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="bg-gray-50 text-gray-900 space-y-8"
+      >
+        <section className="pt-2 md:pt-3 mb-10">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2
+                className="text-3xl font-black text-slate-900 tracking-tight"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Gestión de Inventario
+              </h2>
+              <p className="text-slate-500 font-medium">
+                Control de productos y stock disponible.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-bold text-purple-800">
+                {totalProductos} Productos
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-800">
+            <div className="p-2 rounded-xl bg-blue-100 text-blue-800 w-fit mb-4">
+              <span className="material-symbols-outlined">inventory</span>
+            </div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+              Total en Catálogo
+            </p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+              {totalProductos}
+            </h3>
+            <p className="text-slate-400 text-xs mt-2 font-medium">
+              Productos disponibles
+            </p>
+          </article>
+
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-700">
+            <div className="p-2 rounded-xl bg-green-100 text-green-800 w-fit mb-4">
+              <span className="material-symbols-outlined">check_circle</span>
+            </div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+              Productos Activos
+            </p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+              {productosActivos}
+            </h3>
+            <p className="text-slate-400 text-xs mt-2 font-medium">
+              {Math.round((productosActivos / totalProductos) * 100)}% del total
+            </p>
+          </article>
+
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-red-600">
+            <div className="p-2 rounded-xl bg-red-100 text-red-800 w-fit mb-4">
+              <span className="material-symbols-outlined">warning</span>
+            </div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+              Bajo Stock
+            </p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+              {productosBajoStock}
+            </h3>
+            <p className="text-slate-400 text-xs mt-2 font-medium">
+              Menos de 10 unidades
+            </p>
+          </article>
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-slate-100">
+              <h4
+                className="text-lg font-bold text-gray-900"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Productos por Categoría
+              </h4>
+            </div>
+            <div className="p-6 space-y-3">
+              {Object.entries(productosPorCategoria)
+                .sort((a, b) => b[1] - a[1])
+                .map(([cat, count]) => (
+                  <div key={cat} className="flex justify-between items-center">
+                    <span className="text-sm font-medium text-slate-600">
+                      {cat}
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
+                          style={{
+                            width: `${Math.min(100, (count / (totalProductos / 5)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="font-black text-slate-900 text-sm w-8 text-right">
+                        {count}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </article>
+
+          <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-slate-100">
+              <h4
+                className="text-lg font-bold text-gray-900"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Top Productos (Mayor Valor)
+              </h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    {["Producto", "Precio", "Stock"].map((head) => (
+                      <th
+                        key={head}
+                        className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest"
+                      >
+                        {head}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {topProductos.map((prod) => (
+                    <tr key={prod.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-xs font-bold text-gray-900 truncate">
+                          {prod.nombre || "Sin nombre"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-xs font-bold">
+                        {formatAmount(prod.precio || 0)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`text-xs font-black px-2 py-1 rounded-full ${
+                            Number(prod.stock || 0) < 10
+                              ? "bg-red-100 text-red-800"
+                              : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {prod.stock || 0}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
+              <Link
+                to="/productos"
+                className="text-purple-800 text-xs font-bold hover:underline"
+              >
+                Ver inventario completo →
+              </Link>
+            </div>
+          </article>
+        </section>
+      </motion.div>
+    );
+  };
+
+  // EDITOR EMPLEADOS: Enfocado en empleados
+  const renderDashboardEditorEmpleados = () => {
+    const departamentos = {};
+    const totalEmpleados = empleadosData.length;
+    const empleadosActivos = empleadosData.filter(
+      (e) => e.estado === "active" || e.estado === "Activo",
+    ).length;
+
+    empleadosData.forEach((e) => {
+      const dept = e.departamento || "Sin Departamento";
+      if (!departamentos[dept]) {
+        departamentos[dept] = { total: 0, activos: 0 };
+      }
+      departamentos[dept].total++;
+      if (e.estado === "active" || e.estado === "Activo") {
+        departamentos[dept].activos++;
+      }
+    });
+
+    const empConMasCreditos = [...creditosData]
+      .reduce((acc, c) => {
+        const empId = c.empleadoId || c.id;
+        const idx = acc.findIndex((e) => e.id === empId);
+        if (idx === -1) {
+          acc.push({ id: empId, cantidad: 1 });
+        } else {
+          acc[idx].cantidad++;
+        }
+        return acc;
+      }, [])
+      .sort((a, b) => b.cantidad - a.cantidad)
+      .slice(0, 5)
+      .map((item) => {
+        const emp = empleadosData.find(
+          (e) => e.empleadoId === item.id || e.id === item.id,
+        ) || {};
+        return {
+          nombre: emp.nombres
+            ? `${emp.nombres} ${emp.apellidos}`
+            : "Desconocido",
+          cantidad: item.cantidad,
+          departamento: emp.departamento || "N/A",
+        };
+      });
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="bg-gray-50 text-gray-900 space-y-8"
+      >
+        <section className="pt-2 md:pt-3 mb-10">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2
+                className="text-3xl font-black text-slate-900 tracking-tight"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Gestión de Empleados
+              </h2>
+              <p className="text-slate-500 font-medium">
+                Información de personal y actividad de créditos.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-800">
+                {empleadosActivos} Activos
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-cyan-700">
+            <div className="p-2 rounded-xl bg-cyan-100 text-cyan-800 w-fit mb-4">
+              <span className="material-symbols-outlined">group</span>
+            </div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+              Total de Empleados
+            </p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+              {totalEmpleados}
+            </h3>
+            <p className="text-slate-400 text-xs mt-2 font-medium">
+              En el sistema
+            </p>
+          </article>
+
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-teal-700">
+            <div className="p-2 rounded-xl bg-teal-100 text-teal-800 w-fit mb-4">
+              <span className="material-symbols-outlined">check_circle</span>
+            </div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+              Empleados Activos
+            </p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+              {empleadosActivos}
+            </h3>
+            <p className="text-slate-400 text-xs mt-2 font-medium">
+              {totalEmpleados > 0
+                ? Math.round((empleadosActivos / totalEmpleados) * 100)
+                : 0}
+              % activos
+            </p>
+          </article>
+
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-700">
+            <div className="p-2 rounded-xl bg-green-100 text-green-800 w-fit mb-4">
+              <span className="material-symbols-outlined">trending_up</span>
+            </div>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+              Créditos del Mes
+            </p>
+            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+              {monthlyData.empleadosConReserva}
+            </h3>
+            <p className="text-slate-400 text-xs mt-2 font-medium">
+              Nuevas solicitudes
+            </p>
+          </article>
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-cyan-50 to-teal-50 border-b border-slate-100">
+              <h4
+                className="text-lg font-bold text-gray-900"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Empleados por Departamento
+              </h4>
+            </div>
+            <div className="p-6 space-y-4">
+              {Object.entries(departamentos)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([dept, data]) => (
+                  <div key={dept} className="border-b border-slate-100 last:border-0 pb-3">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-bold text-slate-700">
+                        {dept}
+                      </span>
+                      <span className="text-xs font-bold text-slate-500">
+                        {data.activos}/{data.total}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-cyan-500 to-teal-500"
+                        style={{
+                          width: `${(data.activos / data.total) * 100}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </article>
+
+          <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-lime-50 to-green-50 border-b border-slate-100">
+              <h4
+                className="text-lg font-bold text-gray-900"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Top Empleados (Más Créditos)
+              </h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    {["Empleado", "Dpto.", "Créditos"].map((head) => (
+                      <th
+                        key={head}
+                        className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest"
+                      >
+                        {head}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {empConMasCreditos.map((emp, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-xs font-bold text-gray-900 truncate">
+                          {emp.nombre.split(" ").slice(0, 2).join(" ")}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500">
+                        {emp.departamento}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-black px-2 py-1 rounded-full bg-green-100 text-green-800">
+                          {emp.cantidad}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
+              <Link
+                to="/empleados"
+                className="text-cyan-800 text-xs font-bold hover:underline"
+              >
+                Ver todos los empleados →
+              </Link>
+            </div>
+          </article>
+        </section>
+      </motion.div>
+    );
+  };
+
+  // ADMIN/SUPER ADMIN: Dashboard completo (original)
+  const renderDashboardAdmin = () => (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
@@ -505,4 +1247,37 @@ export default function Dashboard() {
       </section>
     </motion.div>
   );
+
+  // ──────────────────────────────────────────────────────
+  // RETORNO CONDICIONAL SEGÚN ROL
+  // ──────────────────────────────────────────────────────
+
+  const normalizeRole = (role) => {
+    if (!role) return "ADMIN";
+    const normalized = role.toUpperCase().trim();
+    if (normalized.includes("CEO")) return "CEO";
+    if (normalized.includes("EDITOR CREDITO")) return "EDITOR_CREDITOS";
+    if (normalized.includes("EDITOR INVENTARIO")) return "EDITOR_INVENTARIO";
+    if (normalized.includes("EDITOR EMPLEADO")) return "EDITOR_EMPLEADOS";
+    if (normalized.includes("SUPER ADMIN")) return "SUPER_ADMIN";
+    if (normalized.includes("ADMIN")) return "ADMIN";
+    return "ADMIN";
+  };
+
+  const userRole = normalizeRole(authRole);
+
+  switch (userRole) {
+    case "CEO":
+      return renderDashboardCEO();
+    case "EDITOR_CREDITOS":
+      return renderDashboardEditorCreditos();
+    case "EDITOR_INVENTARIO":
+      return renderDashboardEditorInventario();
+    case "EDITOR_EMPLEADOS":
+      return renderDashboardEditorEmpleados();
+    case "SUPER_ADMIN":
+    case "ADMIN":
+    default:
+      return renderDashboardAdmin();
+  }
 }
