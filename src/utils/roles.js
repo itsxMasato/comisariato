@@ -30,7 +30,12 @@ export const ACTIONS = {
 
 // Mapa de permisos
 export const ROLE_PERMISSIONS = {
-  [ROLES.SUPER_ADMIN]: { "*": ["*"] },
+  [ROLES.SUPER_ADMIN]: {
+    [MODULES.DASHBOARD]: ["*"],
+    [MODULES.USUARIOS]: ["*"],
+    [MODULES.BITACORA]: ["*"],
+    [MODULES.PARAMETROS]: ["*"],
+  },
   [ROLES.ADMIN]: {
     [MODULES.DASHBOARD]: ["*"],
     [MODULES.PRODUCTOS]: ["*"],
@@ -89,7 +94,8 @@ export const hasPermission = (userRole, moduleName, action = ACTIONS.VIEW) => {
   if (currentRole === "Administrador") currentRole = ROLES.SUPER_ADMIN;
   else if (currentRole === "Usuario") currentRole = ROLES.EMPLEADO;
 
-  const rolePerms = ROLE_PERMISSIONS[currentRole] || DYNAMIC_ROLES[currentRole.toUpperCase()];
+  const rolePerms = DYNAMIC_ROLES[currentRole.toUpperCase()] || ROLE_PERMISSIONS[currentRole];
+  
   if (!rolePerms) return false;
 
   // Acceso total
