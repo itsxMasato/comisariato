@@ -47,6 +47,7 @@ export default function Dashboard() {
   const { userName, role: authRole } = useAuth();
   const [monthKey, setMonthKey] = useState(() => getCurrentMonthKey());
   const [empleadosData, setEmpleadosData] = useState([]);
+  const [usuariosData, setUsuariosData] = useState([]);
   const [creditosData, setCreditosData] = useState([]);
   const [cuotasData, setCuotasData] = useState([]);
   const [productosData, setProductosData] = useState([]);
@@ -54,6 +55,9 @@ export default function Dashboard() {
   useEffect(() => {
     const unsubE = onSnapshot(collection(db, "empleados"), (s) =>
       setEmpleadosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+    const unsubU = onSnapshot(collection(db, "usuarios"), (s) =>
+      setUsuariosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
     );
     const unsubC = onSnapshot(collection(db, "creditos"), (s) =>
       setCreditosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -66,6 +70,7 @@ export default function Dashboard() {
     );
     return () => {
       unsubE();
+      unsubU();
       unsubC();
       unsubQ();
       unsubP();
@@ -101,38 +106,71 @@ export default function Dashboard() {
       return date.getFullYear() === year && date.getMonth() + 1 === month;
     });
 
-    const weeklyCompilation = [1, 2, 3, 4].map((week) => ({
-      label: `SEM ${week}`,
-      solicitudes: 0,
-      cobros: 0,
-    }));
+    // Generar últimos 3 meses de datos
+    const monthlyYearlyCompilation = [];
+    for (let i = 2; i >= 0; i--) {
+      const d = new Date(year, month - 1 - i, 1);
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthLabel = new Intl.DateTimeFormat("es-HN", {
+        month: "short",
+        year: "2-digit",
+      }).format(d);
+      
+      const creditosMonth = creditosData.filter((c) => {
+        const date = c.fechaAutoriza?.toDate
+          ? c.fechaAutoriza.toDate()
+          : new Date();
+        return date.getFullYear() === d.getFullYear() && date.getMonth() + 1 === d.getMonth() + 1;
+      });
+      
+      const cuotasMonth = cuotasData.filter((c) => {
+        const date = c.fecha?.toDate ? c.fecha.toDate() : new Date();
+        return date.getFullYear() === d.getFullYear() && date.getMonth() + 1 === d.getMonth() + 1;
+      });
+      
+      const solicitudesTotales = creditosMonth.reduce((sum, tx) => sum + (Number(tx.totalCredito) || 0), 0);
+      const cobrosTotales = cuotasMonth.reduce((sum, tx) => sum + (Number(tx.monto) || 0), 0);
+      
+      monthlyYearlyCompilation.push({
+        label: monthLabel,
+        solicitudes: solicitudesTotales,
+        cobros: cobrosTotales,
+      });
+    }
 
-    creditosMes.forEach((tx) => {
-      const date = tx.fechaAutoriza?.toDate
-        ? tx.fechaAutoriza.toDate()
-        : new Date();
-      const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
-      weeklyCompilation[bucket].solicitudes += Number(tx.totalCredito) || 0;
-    });
-
-    cuotasMes.forEach((tx) => {
-      const date = tx.fecha?.toDate ? tx.fecha.toDate() : new Date();
-      const bucket = Math.min(3, Math.floor((date.getDate() - 1) / 7));
-      // If saldoPendiente === 0 it means it's paid (or practically speaking, the 'monto' is what we collected)
-      weeklyCompilation[bucket].cobros += Number(tx.monto) || 0;
-    });
+    const weeklyCompilation = monthlyYearlyCompilation;
 
     const pagosMensuales = cuotasMes.reduce(
       (sum, tx) => sum + (Number(tx.monto) || 0),
       0,
     );
-    const revisionesPendientes = creditosData.filter(
-      (c) => c.estado === "Pendiente",
+
+    const normalizeStatus = (value) => String(value || "").trim().toLowerCase();
+    const isStatusActivo = (value) =>
+      normalizeStatus(value) === "activo";
+    const isStatusAprobado = (value) =>
+      ["aprobado", "aprobados"].includes(normalizeStatus(value));
+    const isStatusPagado = (value) =>
+      ["pagado", "finalizado"].includes(normalizeStatus(value));
+    const isStatusRechazado = (value) =>
+      ["rechazado", "rechazo"].includes(normalizeStatus(value));
+
+    const revisionesPendientes = creditosMes.filter(
+      (c) => normalizeStatus(c.estado) === "pendiente",
     ).length;
 
     const reservasDelMes = creditosMes.length;
-    const creditosActivos = creditosData.filter(
-      (c) => c.estado === "Activo",
+    const creditosActivos = creditosMes.filter(
+      (c) => isStatusActivo(c.estado),
+    ).length;
+    const creditosAprobados = creditosMes.filter(
+      (c) => isStatusAprobado(c.estado),
+    ).length;
+    const creditosPagados = creditosMes.filter(
+      (c) => isStatusPagado(c.estado),
+    ).length;
+    const creditosRechazados = creditosMes.filter(
+      (c) => isStatusRechazado(c.estado),
     ).length;
 
     // Meta example calculation. Let's make it hit 85 if we met goals.
@@ -155,15 +193,35 @@ export default function Dashboard() {
       })
       .slice(0, 5)
       .map((tx, idx) => {
+        const targetId = String(tx.empleadoId || tx.usuarioId || "").trim();
         const emp =
           empleadosData.find(
-            (e) => e.empleadoId === tx.empleadoId || e.id === tx.empleadoId,
-          ) || {};
+            (e) => String(e.id) === targetId || 
+                   String(e.empleadoId) === targetId ||
+                   String(e.uid) === targetId ||
+                   String(e.dni) === targetId,
+          );
+        const usr =
+          usuariosData.find(
+            (u) => String(u.id) === targetId || 
+                   String(u.uid) === targetId ||
+                   String(u.empleadoId) === targetId ||
+                   String(u.dni) === targetId,
+          );
+        
+        const personMatch = emp || usr || {};
+        
+        const nombres = personMatch.nombres || personMatch.nombre || "";
+        const apellidos = personMatch.apellidos || "";
+        const nombreCompleto = nombres && apellidos 
+          ? `${nombres} ${apellidos}`
+          : nombres || tx.empleado || tx.empleadoNombre || tx.nombreEmpleado || "Desconocido";
+          
         return {
-          name: emp.nombres ? `${emp.nombres} ${emp.apellidos}` : "Desconocido",
+          name: nombreCompleto,
           id: tx.creditoId || tx.id.substring(0, 6).toUpperCase(),
           amount: formatAmount(tx.totalCredito || 0),
-          dept: emp.departamento || "N/A",
+          dept: personMatch.departamento || personMatch.rol || "N/A",
           status: tx.estado || "PENDIENTE",
           statusClass:
             tx.estado === "Activo"
@@ -181,16 +239,19 @@ export default function Dashboard() {
 
     return {
       creditosActivos,
+      creditosAprobados,
       revisionesPendientes,
       pagosMensuales,
       metaCobranza,
       empleadosActivos:
         empleadosActivos > 0 ? empleadosActivos : EMPLEADOS_ACTIVOS_BASE,
       empleadosConReserva: reservasDelMes,
+      creditosPagados,
+      creditosRechazados,
       weeklyCompilation,
       approvals,
     };
-  }, [monthKey, empleadosData, creditosData, cuotasData]);
+  }, [monthKey, empleadosData, usuariosData, creditosData, cuotasData]);
 
   const maxSolicitudes = Math.max(
     ...monthlyData.weeklyCompilation.map((week) => week.solicitudes),
@@ -199,22 +260,22 @@ export default function Dashboard() {
 
   const kpis = [
     {
-      icon: "payments",
-      label: "Creditos Activos",
-      value: monthlyData.creditosActivos.toLocaleString("es-HN"),
-      sub: `Revisiones pendientes: ${monthlyData.revisionesPendientes}`,
+      icon: "people",
+      label: "Total de Usuarios",
+      value: usuariosData.length.toLocaleString("es-HN"),
+      sub: `Usuarios registrados en el sistema`,
       badge: null,
       badgeClass: "",
       iconBg: "bg-green-100 text-green-800",
       border: "border-green-800",
     },
     {
-      icon: "account_balance_wallet",
-      label: "Pagos Mensuales",
-      value: formatMoney(monthlyData.pagosMensuales / 1000),
-      sub: "Compilacion del mes seleccionado",
-      badge: `Meta ${monthlyData.metaCobranza}%`,
-      badgeClass: "bg-green-50 text-green-700",
+      icon: "inventory_2",
+      label: "Total de Productos",
+      value: productosData.length.toLocaleString("es-HN"),
+      sub: "Bienes disponibles en inventario",
+      badge: null,
+      badgeClass: "",
       iconBg: "bg-green-100 text-green-800",
       border: "border-green-700",
     },
@@ -408,49 +469,64 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-800">
+      <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-700">
           <div className="p-2 rounded-xl bg-green-100 text-green-800 w-fit mb-4">
             <span className="material-symbols-outlined">trending_up</span>
           </div>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
             Créditos Activos
           </p>
-          <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
+          <h3 className="text-3xl font-extrabold text-green-700 mt-1">
             {monthlyData.creditosActivos}
           </h3>
           <p className="text-slate-400 text-xs mt-2 font-medium">
-            En seguimiento y cobranza
+            Operativos este mes
           </p>
         </article>
 
         <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
           <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
-            <span className="material-symbols-outlined">pending_actions</span>
+            <span className="material-symbols-outlined">thumb_up</span>
           </div>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-            Pendientes de Revisión
+            Créditos Aprobados
           </p>
-          <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
-            {monthlyData.revisionesPendientes}
+          <h3 className="text-3xl font-extrabold text-emerald-700 mt-1">
+            {monthlyData.creditosAprobados}
           </h3>
           <p className="text-slate-400 text-xs mt-2 font-medium">
-            Requieren aprobación
+            Solicitudes aprobadas este mes
           </p>
         </article>
 
-        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
-          <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
-            <span className="material-symbols-outlined">attach_money</span>
+        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-600">
+          <div className="p-2 rounded-xl bg-emerald-100 text-green-800 w-fit mb-4">
+            <span className="material-symbols-outlined">block</span>
           </div>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-            Cobranza del Mes
+            Créditos Rechazados
           </p>
-          <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
-            {formatMoney(monthlyData.pagosMensuales / 1000)}
+          <h3 className="text-3xl font-extrabold text-emerald-700 mt-1">
+            {monthlyData.creditosRechazados}
           </h3>
           <p className="text-slate-400 text-xs mt-2 font-medium">
-            Meta: {monthlyData.metaCobranza}%
+            Solicitudes rechazadas este mes
+          </p>
+        </article>
+
+        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-800">
+          <div className="p-2 rounded-xl bg-green-100 text-green-800 w-fit mb-4">
+            <span className="material-symbols-outlined">paid</span>
+          </div>
+          <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
+            Créditos Pagados
+          </p>
+          <h3 className="text-3xl font-extrabold text-green-800 mt-1">
+            {monthlyData.creditosPagados}
+          </h3>
+          <p className="text-slate-400 text-xs mt-2 font-medium">
+            Créditos cerrados este mes
           </p>
         </article>
       </section>
@@ -461,10 +537,10 @@ export default function Dashboard() {
             className="text-xl font-bold text-gray-900 mb-6"
             style={{ fontFamily: "Manrope, sans-serif" }}
           >
-            Actividad Semanal
+            Actividad Mensual
           </h4>
           <p className="text-sm text-slate-500 mb-4">
-            Solicitudes vs Cobranza
+            Últimos 3 meses - Solicitudes vs Cobranza
           </p>
           <div className="flex items-end justify-between h-40 gap-3 pt-4">
             {monthlyData.weeklyCompilation.map((week) => (
@@ -504,6 +580,17 @@ export default function Dashboard() {
 
   // EDITOR INVENTARIO: Enfocado en productos
   const renderDashboardEditorInventario = () => {
+    // Función para obtener el precio desde múltiples campos posibles
+    const getPrecio = (producto) => {
+      return Number(
+        producto.precio ||
+        producto.precioUnitario ||
+        producto.precioVenta ||
+        producto.costo ||
+        0
+      );
+    };
+
     const productosPorCategoria = {};
     const totalProductos = productosData.length;
     const productosActivos = productosData.filter(
@@ -522,7 +609,7 @@ export default function Dashboard() {
     });
 
     const topProductos = [...productosData]
-      .sort((a, b) => (Number(b.precio) || 0) - (Number(a.precio) || 0))
+      .sort((a, b) => getPrecio(b) - getPrecio(a))
       .slice(0, 5);
 
     return (
@@ -544,11 +631,6 @@ export default function Dashboard() {
               <p className="text-slate-500 font-medium">
                 Control de productos y stock disponible.
               </p>
-            </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
-                {totalProductos} Productos
-              </span>
             </div>
           </div>
         </section>
@@ -649,7 +731,7 @@ export default function Dashboard() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    {["Producto", "Precio", "Stock"].map((head) => (
+                    {["Producto", "Stock"].map((head) => (
                       <th
                         key={head}
                         className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest"
@@ -666,9 +748,6 @@ export default function Dashboard() {
                         <p className="text-xs font-bold text-gray-900 truncate">
                           {prod.nombre || "Sin nombre"}
                         </p>
-                      </td>
-                      <td className="px-4 py-3 text-xs font-bold">
-                        {formatAmount(prod.precio || 0)}
                       </td>
                       <td className="px-4 py-3">
                         <span
@@ -719,31 +798,54 @@ export default function Dashboard() {
       }
     });
 
-    const empConMasCreditos = [...creditosData]
-      .reduce((acc, c) => {
-        const empId = c.empleadoId || c.id;
-        const idx = acc.findIndex((e) => e.id === empId);
-        if (idx === -1) {
-          acc.push({ id: empId, cantidad: 1 });
-        } else {
-          acc[idx].cantidad++;
-        }
-        return acc;
-      }, [])
-      .sort((a, b) => b.cantidad - a.cantidad)
-      .slice(0, 5)
-      .map((item) => {
-        const emp = empleadosData.find(
-          (e) => e.empleadoId === item.id || e.id === item.id,
-        ) || {};
-        return {
-          nombre: emp.nombres
-            ? `${emp.nombres} ${emp.apellidos}`
-            : "Desconocido",
-          cantidad: item.cantidad,
-          departamento: emp.departamento || "N/A",
-        };
-      });
+    // Calcular nómina activa y límite de crédito total
+    const nominaActiva = empleadosData
+      .filter((e) => e.estado === "active" || e.estado === "Activo")
+      .reduce((sum, e) => sum + (Number(e.salario) || 0), 0);
+    
+    const limiteCreditoTotal = empleadosData.reduce(
+      (sum, e) => sum + (Number(e.limiteCredito) || 0),
+      0,
+    );
+
+    // Nuevas métricas: promedio de salarios y empleados inactivos
+    const promedioSalarios = empleadosActivos > 0 ? nominaActiva / empleadosActivos : 0;
+    const empleadosInactivos = totalEmpleados - empleadosActivos;
+
+    // Empleado con mayor salario
+    const empleadoMaxSalario = empleadosData.reduce((max, emp) => {
+      const salario = Number(emp.salario) || 0;
+      const maxSalario = Number(max.salario) || 0;
+      return salario > maxSalario ? emp : max;
+    }, {});
+
+    // Calcular salarios y límites de crédito por departamento
+    const salariosPorDepartamento = {};
+    const limitesPorDepartamento = {};
+    
+    empleadosData.forEach((e) => {
+      const dept = e.departamento || "Sin Departamento";
+      if (!salariosPorDepartamento[dept]) {
+        salariosPorDepartamento[dept] = 0;
+        limitesPorDepartamento[dept] = 0;
+      }
+      salariosPorDepartamento[dept] += Number(e.salario || 0);
+      limitesPorDepartamento[dept] += Number(e.limiteCredito || 0);
+    });
+
+    const resumenSalarios = Object.entries(salariosPorDepartamento)
+      .map(([dept, salario]) => ({
+        departamento: dept,
+        salarioTotal: salario,
+        limiteTotal: limitesPorDepartamento[dept] || 0,
+      }))
+      .sort((a, b) => b.salarioTotal - a.salarioTotal);
+
+    const formatCurrency = (value) =>
+      `L ${Number(value).toLocaleString("es-HN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
 
     return (
       <motion.div
@@ -765,69 +867,46 @@ export default function Dashboard() {
                 Información de personal y actividad de créditos.
               </p>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
-                {empleadosActivos} Activos
-              </span>
-            </div>
           </div>
         </section>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
             <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
-              <span className="material-symbols-outlined">group</span>
+              <span className="material-symbols-outlined">paid</span>
             </div>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-              Total de Empleados
+              Promedio de Salarios
             </p>
-            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
-              {totalEmpleados}
+            <h3 className="text-3xl font-extrabold text-emerald-700 mt-1">
+              {formatCurrency(promedioSalarios)}
             </h3>
             <p className="text-slate-400 text-xs mt-2 font-medium">
-              En el sistema
-            </p>
-          </article>
-
-          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
-            <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
-              <span className="material-symbols-outlined">check_circle</span>
-            </div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-              Empleados Activos
-            </p>
-            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
-              {empleadosActivos}
-            </h3>
-            <p className="text-slate-400 text-xs mt-2 font-medium">
-              {totalEmpleados > 0
-                ? Math.round((empleadosActivos / totalEmpleados) * 100)
-                : 0}
-              % activos
+              Por empleado activo
             </p>
           </article>
 
           <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-700">
             <div className="p-2 rounded-xl bg-green-100 text-green-800 w-fit mb-4">
-              <span className="material-symbols-outlined">trending_up</span>
+              <span className="material-symbols-outlined">star</span>
             </div>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-              Créditos del Mes
+              Empleado con Mayor Salario
             </p>
-            <h3 className="text-3xl font-extrabold text-gray-900 mt-1">
-              {monthlyData.empleadosConReserva}
+            <h3 className="text-3xl font-extrabold text-green-700 mt-1">
+              {empleadoMaxSalario.nombre || empleadoMaxSalario.nombres || "Sin nombre"}
             </h3>
             <p className="text-slate-400 text-xs mt-2 font-medium">
-              Nuevas solicitudes
+              {formatCurrency(Number(empleadoMaxSalario.salario) || 0)} mensuales
             </p>
           </article>
         </section>
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-green-50 border-b border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-500 to-green-600 border-b border-slate-100">
               <h4
-                className="text-lg font-bold text-gray-900"
+                className="text-lg font-bold text-white"
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
                 Empleados por Departamento
@@ -860,19 +939,19 @@ export default function Dashboard() {
           </article>
 
           <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-6 py-4 bg-gradient-to-r from-lime-50 to-green-50 border-b border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-500 to-green-600 border-b border-slate-100">
               <h4
-                className="text-lg font-bold text-gray-900"
+                className="text-lg font-bold text-white"
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
-                Top Empleados (Más Créditos)
+                Resumen Financiero por Departamento
               </h4>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    {["Empleado", "Dpto.", "Créditos"].map((head) => (
+                    {["Departamento", "Salarios", "Límites Crédito"].map((head) => (
                       <th
                         key={head}
                         className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest"
@@ -883,19 +962,21 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {empConMasCreditos.map((emp, idx) => (
+                  {resumenSalarios.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3">
-                        <p className="text-xs font-bold text-gray-900 truncate">
-                          {emp.nombre.split(" ").slice(0, 2).join(" ")}
+                        <p className="text-xs font-bold text-gray-900">
+                          {item.departamento}
                         </p>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500">
-                        {emp.departamento}
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-bold text-green-700">
+                          {formatCurrency(item.salarioTotal)}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-xs font-black px-2 py-1 rounded-full bg-green-100 text-green-800">
-                          {emp.cantidad}
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-300 text-green-900">
+                          {formatCurrency(item.limiteTotal)}
                         </span>
                       </td>
                     </tr>
@@ -903,12 +984,12 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
-            <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
+            <div className="px-6 py-3 bg-emerald-50 border-t border-slate-100">
               <Link
                 to="/empleados"
-                className="text-green-800 text-xs font-bold hover:underline"
+                className="text-green-900 text-xs font-bold hover:underline"
               >
-                Ver todos los empleados →
+                Gestionar empleados →
               </Link>
             </div>
           </article>
@@ -990,10 +1071,10 @@ export default function Dashboard() {
                 className="text-xl font-bold text-gray-900"
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
-                Actividad Semanal
+                Actividad Mensual
               </h4>
               <p className="text-sm text-slate-500">
-                Flujo de creditos vs cobranza
+                Últimos 3 meses - Flujo de créditos vs cobranza
               </p>
               <div className="mt-2 flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
                 <span className="inline-flex items-center gap-1 text-slate-500">
