@@ -273,9 +273,7 @@ export default function Productos() {
       precioContado: priceVal,
       precioCredito: priceVal * (1 + (parametros.porcentajeInteres || 0) / 100),
       stock: stockVal,
-      imagenUrl:
-        formData.get("img_url") ||
-        "https://via.placeholder.com/150?text=Sin+Foto",
+      imagenUrl: imgUrlForm || "https://via.placeholder.com/150?text=Sin+Foto",
       descripcion: "",
       tipoModificacion: selectedProduct ? "Actualización de Producto" : "Creación de Producto",
       usuarioModifico: auth.currentUser?.email || "Admin",
