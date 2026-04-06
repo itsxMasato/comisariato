@@ -457,6 +457,8 @@ export default function Reservas() {
                     placeholder="Buscar reservas..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
+                    autoComplete="off"
+                    spellCheck="false"
                   />
                 </div>
               </div>
