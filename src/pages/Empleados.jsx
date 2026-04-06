@@ -20,6 +20,7 @@ export default function Empleados() {
     const [departamentos, setDepartamentos] = useState([]);
     const [parametros, setParametros] = useState({ porcentajeSueldo: 15 });
     const [historialData, setHistorialData] = useState([]);
+    const [statusFilter, setStatusFilter] = useState("Activos");
 
     useEffect(() => {
         const unsubDepto = onSnapshot(collection(db, "departamentos"), (snapshot) => {
@@ -79,7 +80,18 @@ export default function Empleados() {
     const sumaSalarios = employees.reduce((acc, curr) => acc + curr.salario, 0);
 
     const inactivosEnNomina = employees.filter(e => e.estado === 'inactive' || e.estado === 'Inactivo').length;
-    const eliminadosHistorico = historialData.filter(h => h.tipoModificacion === 'Eliminación de Empleado').length;
+
+    const uniqueDeleted = [];
+    historialData
+        .filter(h => h.tipoModificacion === 'Eliminación de Empleado' && !employeesData.find(e => e.id === h.empleadoId))
+        .sort((a, b) => (b.fechaModificacion?.seconds || 0) - (a.fechaModificacion?.seconds || 0))
+        .forEach(h => {
+            if (!uniqueDeleted.find(ud => ud.empleadoId === h.empleadoId)) {
+                uniqueDeleted.push(h);
+            }
+        });
+
+    const eliminadosHistorico = uniqueDeleted.length;
     const totalInactivosGeneral = inactivosEnNomina + eliminadosHistorico;
 
     const [formData, setFormData] = useState({
@@ -150,7 +162,6 @@ export default function Empleados() {
     };
 
     const handleDeleteEmployee = async (emp) => {
-        if (!window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${emp.nombres} ${emp.apellidos}?`)) return;
 
         try {
             await addDoc(collection(db, "historial_empleados"), {
@@ -177,7 +188,67 @@ export default function Empleados() {
         }
     };
 
-    const filtered = employees.filter(e =>
+    const handleRestoreEmployee = async (emp) => {
+
+        try {
+            const payload = {
+                nombres: emp.nombres,
+                apellidos: emp.apellidos,
+                codigoEmpleado: emp.codigoEmpleado,
+                correo: emp.correo,
+                departamento: emp.departamento,
+                dni: emp.dni,
+                limiteCredito: emp.limiteCredito || emp.limiteCreditos || 0,
+                salario: emp.salario,
+                telefono: emp.telefono,
+                estado: "Activo",
+                fechaRegistro: emp.fechaRegistroRaw || Timestamp.now()
+            };
+            await setDoc(doc(db, "empleados", emp.empleadoId), payload);
+
+            await addDoc(collection(db, "historial_empleados"), {
+                ...payload,
+                empleadoId: emp.empleadoId,
+                tipoModificacion: "Restauración de Empleado",
+                usuarioModifico: auth.currentUser?.email || "Admin",
+                fechaModificacion: Timestamp.now()
+            });
+        } catch (error) {
+            console.error("Error al restaurar empleado:", error);
+            alert("Hubo un error al habilitar el empleado");
+        }
+    };
+
+    const deletedEmployeesMapped = uniqueDeleted.map(e => ({
+        ...e,
+        fromHistory: true,
+        estado: 'Inactivo',
+        empleadoId: e.empleadoId || e.id,
+        nombres: e.nombres || "",
+        apellidos: e.apellidos || "",
+        codigoEmpleado: e.codigoEmpleado || "N/A",
+        correo: e.correo || "",
+        departamento: e.departamento || "N/A",
+        dni: e.dni || "",
+        limiteCredito: e.limiteCreditos || e.limiteCredito || 0,
+        salario: e.salario || 0,
+        telefono: e.telefono || "",
+        fechaRegistroRaw: e.fechaRegistro,
+        fechaRegistro: e.fechaRegistro && typeof e.fechaRegistro.toDate === 'function' ? e.fechaRegistro.toDate().toLocaleDateString() : e.fechaRegistro || "",
+        balance: 0,
+        img: `https://ui-avatars.com/api/?name=${e.nombres ? e.nombres[0] : 'U'}`
+    }));
+
+    const combinedEmployees = [...employees, ...deletedEmployeesMapped];
+
+    const visibleEmployees = combinedEmployees.filter(e => {
+        const isActive = e.estado === 'Activo' || e.estado === 'active';
+        if (statusFilter === 'Activos') return isActive;
+        if (statusFilter === 'Inactivos') return !isActive;
+        return true;
+    });
+
+    const filtered = visibleEmployees.filter(e =>
         e.nombres.toLowerCase().includes(search.toLowerCase()) ||
         e.codigoEmpleado.toLowerCase().includes(search.toLowerCase())
     );
@@ -386,11 +457,27 @@ export default function Empleados() {
                         placeholder="Buscar empleado por nombre o código..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
+                        autoComplete="off"
+                        spellCheck="false"
                     />
                 </div>
 
-                {/* Table */}
-                <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
+                {/* Table area with Tabs */}
+                <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 flex flex-col">
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                        <h5 className="text-sm font-bold text-slate-800 uppercase tracking-widest hidden sm:block">Planilla</h5>
+                        <div className="flex bg-slate-200/50 p-1 rounded-xl">
+                            {["Todos", "Activos", "Inactivos"].map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => setStatusFilter(s)}
+                                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${statusFilter === s ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                >
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                     <table className="w-full border-collapse text-left">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-100">
@@ -426,11 +513,21 @@ export default function Empleados() {
                                             >
                                                 <span className="material-symbols-outlined text-sm">visibility</span>
                                             </button>
-                                            {canEdit && (
-                                                <button onClick={() => handleOpenModal(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><span className="material-symbols-outlined text-sm">edit</span></button>
-                                            )}
-                                            {canDelete && (
-                                                <button onClick={() => handleDeleteEmployee(emp)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">delete</span></button>
+                                            {emp.fromHistory ? (
+                                                canCreate && (
+                                                    <button onClick={() => handleRestoreEmployee(emp)} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg" title="Habilitar Empleado">
+                                                        <span className="material-symbols-outlined text-sm">restore</span>
+                                                    </button>
+                                                )
+                                            ) : (
+                                                <>
+                                                    {canEdit && (
+                                                        <button onClick={() => handleOpenModal(emp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><span className="material-symbols-outlined text-sm">edit</span></button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <button onClick={() => handleDeleteEmployee(emp)} title="Deshabilitar Empleado" className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><span className="material-symbols-outlined text-sm">person_off</span></button>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     </td>
