@@ -66,10 +66,16 @@ export const setDynamicRoles = (rolesArray) => {
   const newRoles = {};
   rolesArray.forEach((r) => {
     if (!r.nombre || !r.permisos) return;
-    const mappedPerms = {};
-    r.permisos.forEach((moduleName) => {
-      mappedPerms[moduleName] = ["*"];
-    });
+    
+    let mappedPerms = {};
+    if (Array.isArray(r.permisos)) {
+      r.permisos.forEach((moduleName) => {
+        mappedPerms[moduleName] = ["*"];
+      });
+    } else if (typeof r.permisos === "object") {
+      mappedPerms = r.permisos;
+    }
+    
     newRoles[r.nombre.toUpperCase()] = mappedPerms;
   });
   DYNAMIC_ROLES = newRoles;
