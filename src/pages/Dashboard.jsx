@@ -214,9 +214,9 @@ export default function Dashboard() {
       value: formatMoney(monthlyData.pagosMensuales / 1000),
       sub: "Compilacion del mes seleccionado",
       badge: `Meta ${monthlyData.metaCobranza}%`,
-      badgeClass: "bg-amber-50 text-amber-700",
-      iconBg: "bg-amber-100 text-amber-800",
-      border: "border-amber-700",
+      badgeClass: "bg-green-50 text-green-700",
+      iconBg: "bg-green-100 text-green-800",
+      border: "border-green-700",
     },
     {
       icon: "event_note",
@@ -224,9 +224,9 @@ export default function Dashboard() {
       value: monthlyData.empleadosConReserva.toLocaleString("es-HN"),
       sub: "Solicitudes registradas durante el mes",
       badge: "Mensual",
-      badgeClass: "bg-sky-50 text-sky-700",
-      iconBg: "bg-sky-100 text-sky-700",
-      border: "border-sky-600",
+      badgeClass: "bg-emerald-50 text-emerald-700",
+      iconBg: "bg-emerald-100 text-emerald-700",
+      border: "border-emerald-700",
     },
     {
       icon: "groups",
@@ -269,7 +269,7 @@ export default function Dashboard() {
             <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Mes actual
             </label>
-            <span className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-800 capitalize">
+            <span className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-800 capitalize">
               {monthLabel}
             </span>
           </div>
@@ -338,35 +338,35 @@ export default function Dashboard() {
           </div>
         </article>
 
-        <article className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl overflow-hidden shadow-sm border border-blue-200 p-6">
+        <article className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl overflow-hidden shadow-sm border border-emerald-200 p-6">
           <h4
-            className="text-xl font-bold text-blue-900 mb-4"
+            className="text-xl font-bold text-emerald-900 mb-4"
             style={{ fontFamily: "Manrope, sans-serif" }}
           >
             Análisis Rápido
           </h4>
           <div className="space-y-4">
             <div className="bg-white/60 backdrop-blur p-4 rounded-xl">
-              <p className="text-blue-700 text-xs font-bold uppercase mb-1">
+              <p className="text-emerald-700 text-xs font-bold uppercase mb-1">
                 Empleados Activos
               </p>
-              <p className="text-2xl font-black text-blue-900">
+              <p className="text-2xl font-black text-emerald-900">
                 {monthlyData.empleadosActivos}/{EMPLEADOS_ACTIVOS_BASE}
               </p>
             </div>
             <div className="bg-white/60 backdrop-blur p-4 rounded-xl">
-              <p className="text-blue-700 text-xs font-bold uppercase mb-1">
+              <p className="text-emerald-700 text-xs font-bold uppercase mb-1">
                 Revisiones Pendientes
               </p>
-              <p className="text-2xl font-black text-orange-600">
+              <p className="text-2xl font-black text-emerald-700">
                 {monthlyData.revisionesPendientes}
               </p>
             </div>
             <div className="bg-white/60 backdrop-blur p-4 rounded-xl">
-              <p className="text-blue-700 text-xs font-bold uppercase mb-1">
+              <p className="text-emerald-700 text-xs font-bold uppercase mb-1">
                 Nuevas Solicitudes
               </p>
-              <p className="text-2xl font-black text-green-700">
+              <p className="text-2xl font-black text-emerald-700">
                 {monthlyData.empleadosConReserva}
               </p>
             </div>
@@ -401,7 +401,7 @@ export default function Dashboard() {
             <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Período
             </label>
-            <span className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800 capitalize">
+            <span className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-bold text-green-800 capitalize">
               {monthLabel}
             </span>
           </div>
@@ -424,8 +424,8 @@ export default function Dashboard() {
           </p>
         </article>
 
-        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-orange-600">
-          <div className="p-2 rounded-xl bg-orange-100 text-orange-800 w-fit mb-4">
+        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
+          <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
             <span className="material-symbols-outlined">pending_actions</span>
           </div>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -455,7 +455,7 @@ export default function Dashboard() {
         </article>
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <section className="grid grid-cols-1 gap-8">
         <article className="bg-slate-100 p-8 rounded-2xl relative overflow-hidden">
           <h4
             className="text-xl font-bold text-gray-900 mb-6"
@@ -470,7 +470,7 @@ export default function Dashboard() {
             {monthlyData.weeklyCompilation.map((week) => (
               <div
                 key={week.label}
-                className="flex-1 bg-amber-900/10 rounded-t-lg relative group"
+                className="flex-1 bg-green-900/10 rounded-t-lg relative group"
                 style={{
                   height: `${Math.max(32, (week.solicitudes / maxSolicitudes) * 100)}%`,
                 }}
@@ -479,7 +479,7 @@ export default function Dashboard() {
                   {formatCompactAmount(week.solicitudes)}
                 </div>
                 <div
-                  className="absolute inset-x-0 bottom-0 bg-amber-800/40 rounded-t-lg transition-all group-hover:bg-amber-800/60"
+                  className="absolute inset-x-0 bottom-0 bg-green-800/40 rounded-t-lg transition-all group-hover:bg-green-800/60"
                   style={{
                     height: `${
                       week.solicitudes > 0
@@ -488,7 +488,7 @@ export default function Dashboard() {
                     }%`,
                   }}
                 />
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-amber-900/80">
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-green-900/80">
                   {formatCompactAmount(week.cobros)}
                 </div>
                 <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400">
@@ -496,65 +496,6 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
-          </div>
-        </article>
-
-        <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-          <div className="px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-slate-100">
-            <h4
-              className="text-lg font-bold text-gray-900"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Últimas Aprobaciones
-            </h4>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 border-b border-slate-100">
-                <tr>
-                  {["Empleado", "Monto", "Dpto.", "Estado"].map((head) => (
-                    <th
-                      key={head}
-                      className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest"
-                    >
-                      {head}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {monthlyData.approvals.slice(0, 3).map((row) => (
-                  <tr key={row.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <p className="text-xs font-bold text-gray-900">
-                        {row.name.split(" ").slice(0, 2).join(" ")}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3 text-xs font-bold">
-                      {row.amount}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {row.dept}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-[10px] font-black px-2 py-1 rounded-full ${row.statusClass}`}
-                      >
-                        {row.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
-            <Link
-              to="/creditos"
-              className="text-green-800 text-xs font-bold hover:underline"
-            >
-              Ver todos los créditos →
-            </Link>
           </div>
         </article>
       </section>
@@ -605,7 +546,7 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-bold text-purple-800">
+              <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
                 {totalProductos} Productos
               </span>
             </div>
@@ -613,8 +554,8 @@ export default function Dashboard() {
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-blue-800">
-            <div className="p-2 rounded-xl bg-blue-100 text-blue-800 w-fit mb-4">
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-800">
+            <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
               <span className="material-symbols-outlined">inventory</span>
             </div>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -661,7 +602,7 @@ export default function Dashboard() {
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-green-50 border-b border-slate-100">
               <h4
                 className="text-lg font-bold text-gray-900"
                 style={{ fontFamily: "Manrope, sans-serif" }}
@@ -680,7 +621,7 @@ export default function Dashboard() {
                     <div className="flex items-center gap-3">
                       <div className="w-32 h-2 bg-slate-100 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all"
+                          className="h-full bg-gradient-to-r from-emerald-500 to-green-700 transition-all"
                           style={{
                             width: `${Math.min(100, (count / (totalProductos / 5)) * 100)}%`,
                           }}
@@ -696,7 +637,7 @@ export default function Dashboard() {
           </article>
 
           <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-6 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-green-50 border-b border-slate-100">
               <h4
                 className="text-lg font-bold text-gray-900"
                 style={{ fontFamily: "Manrope, sans-serif" }}
@@ -748,7 +689,7 @@ export default function Dashboard() {
             <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
               <Link
                 to="/productos"
-                className="text-purple-800 text-xs font-bold hover:underline"
+                className="text-green-800 text-xs font-bold hover:underline"
               >
                 Ver inventario completo →
               </Link>
@@ -825,7 +766,7 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-bold text-cyan-800">
+              <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
                 {empleadosActivos} Activos
               </span>
             </div>
@@ -833,8 +774,8 @@ export default function Dashboard() {
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-cyan-700">
-            <div className="p-2 rounded-xl bg-cyan-100 text-cyan-800 w-fit mb-4">
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
+            <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
               <span className="material-symbols-outlined">group</span>
             </div>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -848,8 +789,8 @@ export default function Dashboard() {
             </p>
           </article>
 
-          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-teal-700">
-            <div className="p-2 rounded-xl bg-teal-100 text-teal-800 w-fit mb-4">
+          <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
+            <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
               <span className="material-symbols-outlined">check_circle</span>
             </div>
             <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
@@ -884,7 +825,7 @@ export default function Dashboard() {
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-6 py-4 bg-gradient-to-r from-cyan-50 to-teal-50 border-b border-slate-100">
+            <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-green-50 border-b border-slate-100">
               <h4
                 className="text-lg font-bold text-gray-900"
                 style={{ fontFamily: "Manrope, sans-serif" }}
@@ -907,7 +848,7 @@ export default function Dashboard() {
                     </div>
                     <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-cyan-500 to-teal-500"
+                        className="h-full bg-gradient-to-r from-emerald-500 to-green-700"
                         style={{
                           width: `${(data.activos / data.total) * 100}%`,
                         }}
@@ -965,7 +906,7 @@ export default function Dashboard() {
             <div className="px-6 py-3 bg-slate-50 border-t border-slate-100">
               <Link
                 to="/empleados"
-                className="text-cyan-800 text-xs font-bold hover:underline"
+                className="text-green-800 text-xs font-bold hover:underline"
               >
                 Ver todos los empleados →
               </Link>
@@ -1041,209 +982,69 @@ export default function Dashboard() {
         ))}
       </section>
 
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <article className="bg-slate-100 p-8 rounded-2xl relative overflow-hidden">
-            <div className="flex justify-between items-end mb-8">
-              <div>
-                <h4
-                  className="text-xl font-bold text-gray-900"
-                  style={{ fontFamily: "Manrope, sans-serif" }}
-                >
-                  Actividad Semanal
-                </h4>
-                <p className="text-sm text-slate-500">
-                  Flujo de creditos vs cobranza
-                </p>
-                <div className="mt-2 flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
-                  <span className="inline-flex items-center gap-1 text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-green-900/30" />
-                    Monto Solicitado
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-green-800">
-                    <span className="h-2 w-2 rounded-full bg-green-700/70" />
-                    Monto Cobrado
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button className="px-3 py-1 text-xs font-bold bg-white rounded-lg shadow-sm border border-slate-100">
-                  Mes actual
-                </button>
-                <button className="px-3 py-1 text-xs font-bold text-slate-400 hover:bg-white rounded-lg transition-all">
-                  {monthLabel}
-                </button>
-              </div>
-            </div>
-            <div className="flex items-end justify-between h-48 gap-4 pt-4">
-              {monthlyData.weeklyCompilation.map((week) => (
-                <div
-                  key={week.label}
-                  className="flex-1 bg-green-900/10 rounded-t-lg relative group"
-                  style={{
-                    height: `${Math.max(32, (week.solicitudes / maxSolicitudes) * 100)}%`,
-                  }}
-                >
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-black text-slate-700">
-                    {formatCompactAmount(week.solicitudes)}
-                  </div>
-                  <div
-                    className="absolute inset-x-0 bottom-0 bg-green-800/40 rounded-t-lg transition-all group-hover:bg-green-800/60"
-                    style={{
-                      height: `${
-                        week.solicitudes > 0
-                          ? Math.max(15, (week.cobros / week.solicitudes) * 100)
-                          : 15
-                      }%`,
-                    }}
-                  />
-                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-green-900/80">
-                    {formatCompactAmount(week.cobros)}
-                  </div>
-                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400">
-                    {week.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100">
-            <div className="px-8 py-6 flex justify-between items-center">
+      <section className="grid grid-cols-1 gap-8">
+        <article className="bg-slate-100 p-8 rounded-2xl relative overflow-hidden">
+          <div className="flex justify-between items-end mb-8">
+            <div>
               <h4
                 className="text-xl font-bold text-gray-900"
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
-                Aprobaciones Recientes
+                Actividad Semanal
               </h4>
-              <Link
-                to="/creditos"
-                className="text-green-800 text-xs font-bold hover:underline"
-              >
-                Ver Todo
-              </Link>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 border-y border-slate-100">
-                  <tr>
-                    {["Empleado", "Monto", "Departamento", "Estado"].map(
-                      (head, i) => (
-                        <th
-                          key={head}
-                          className={`px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest ${i === 3 ? "text-right" : ""}`}
-                        >
-                          {head}
-                        </th>
-                      ),
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {monthlyData.approvals.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="hover:bg-slate-50 transition-colors group"
-                    >
-                      <td className="px-8 py-4">
-                        <p className="text-sm font-bold text-gray-900">
-                          {row.name}
-                        </p>
-                        <p className="text-[10px] text-slate-400">
-                          ID: {row.id}
-                        </p>
-                      </td>
-                      <td className="px-8 py-4 text-sm font-bold">
-                        {row.amount}
-                      </td>
-                      <td className="px-8 py-4 text-sm text-slate-500">
-                        {row.dept}
-                      </td>
-                      <td className="px-8 py-4 text-right">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black ${row.statusClass}`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${row.dot}`}
-                          />
-                          {row.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </div>
-
-        <div className="space-y-6">
-          <article className="relative rounded-2xl h-48 overflow-hidden group">
-            <img
-              alt="Productos del comisariato"
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-              src="https://images.unsplash.com/photo-1542838132-92c53300491e?q=80&w=1200&auto=format&fit=crop"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-green-900/90 to-transparent flex flex-col justify-end p-6">
-              <h5
-                className="text-white font-bold text-lg"
-                style={{ fontFamily: "Manrope, sans-serif" }}
-              >
-                Reporte Semanal
-              </h5>
-              <p className="text-green-200 text-xs mt-1">
-                Indicadores del comisariato actualizados
+              <p className="text-sm text-slate-500">
+                Flujo de creditos vs cobranza
               </p>
-              <div className="flex gap-2 mt-4">
-                <span className="px-2 py-1 bg-white/20 backdrop-blur-md rounded-lg text-white text-[10px] font-bold">
-                  PDF
+              <div className="mt-2 flex items-center gap-4 text-[10px] font-bold uppercase tracking-wider">
+                <span className="inline-flex items-center gap-1 text-slate-500">
+                  <span className="h-2 w-2 rounded-full bg-green-900/30" />
+                  Monto Solicitado
                 </span>
-                <span className="px-2 py-1 bg-white/20 backdrop-blur-md rounded-lg text-white text-[10px] font-bold">
-                  XLS
+                <span className="inline-flex items-center gap-1 text-green-800">
+                  <span className="h-2 w-2 rounded-full bg-green-700/70" />
+                  Monto Cobrado
                 </span>
               </div>
             </div>
-          </article>
+            <div className="flex gap-2">
+              <span className="px-3 py-1 text-xs font-bold bg-white rounded-lg shadow-sm border border-slate-100">
+                Mes actual
+              </span>
+            </div>
+          </div>
+          <div className="flex items-end justify-between h-48 gap-4 pt-4">
+            {monthlyData.weeklyCompilation.map((week) => (
+              <div
+                key={week.label}
+                className="flex-1 bg-green-900/10 rounded-t-lg relative group"
+                style={{
+                  height: `${Math.max(32, (week.solicitudes / maxSolicitudes) * 100)}%`,
+                }}
+              >
+                <div className="absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-white/80 px-1.5 py-0.5 text-[10px] font-black text-slate-700">
+                  {formatCompactAmount(week.solicitudes)}
+                </div>
+                <div
+                  className="absolute inset-x-0 bottom-0 bg-green-800/40 rounded-t-lg transition-all group-hover:bg-green-800/60"
+                  style={{
+                    height: `${
+                      week.solicitudes > 0
+                        ? Math.max(15, (week.cobros / week.solicitudes) * 100)
+                        : 15
+                    }%`,
+                  }}
+                />
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-green-900/80">
+                  {formatCompactAmount(week.cobros)}
+                </div>
+                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-400">
+                  {week.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
 
-          <article className="bg-slate-100 p-6 rounded-2xl">
-            <h4
-              className="text-lg font-bold text-gray-900"
-              style={{ fontFamily: "Manrope, sans-serif" }}
-            >
-              Resumen del Mes
-            </h4>
-            <p className="text-slate-500 text-xs mt-2 leading-relaxed">
-              Datos generales del mes seleccionado para seguimiento operativo.
-            </p>
-            <hr className="my-6 border-slate-200" />
-            <div className="space-y-4">
-              <div className="flex justify-between items-center text-sm">
-                <span className="font-medium text-slate-500">
-                  Empleados activos
-                </span>
-                <span className="font-black text-slate-900">
-                  {monthlyData.empleadosActivos.toLocaleString("es-HN")}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="font-medium text-slate-500">
-                  Reservas del mes
-                </span>
-                <span className="font-black text-slate-900">
-                  {monthlyData.empleadosConReserva.toLocaleString("es-HN")}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="font-medium text-slate-500">
-                  Meta de cobranza
-                </span>
-                <span className="font-black text-green-800">
-                  {monthlyData.metaCobranza}%
-                </span>
-              </div>
-            </div>
-          </article>
-        </div>
       </section>
     </motion.div>
   );
