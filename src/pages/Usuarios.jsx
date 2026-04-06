@@ -247,12 +247,20 @@ export default function Usuarios() {
   // ✅ roles con campo `estado` mapeado
   const roles =
     rolesData.length > 0
-      ? rolesData.map((r) => ({
-        id: r.id,
-        name: r.nombre || "",
-        permissions: r.permisos || [],
-        estado: r.estado || "Activo",
-      }))
+      ? rolesData.map((r) => {
+          let permsArray = [];
+          if (Array.isArray(r.permisos)) {
+            permsArray = r.permisos;
+          } else if (typeof r.permisos === "object" && r.permisos !== null) {
+            permsArray = Object.keys(r.permisos);
+          }
+          return {
+            id: r.id,
+            name: r.nombre || "",
+            permissions: permsArray,
+            estado: r.estado || "Activo",
+          };
+        })
       : INITIAL_ROLES;
 
   // Roles activos — únicamente para selects de asignación
