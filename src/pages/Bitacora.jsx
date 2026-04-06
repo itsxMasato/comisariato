@@ -73,7 +73,8 @@ const TablaBitacora = () => {
     const [search, setSearch] = useState("");
     const [filtroModulo, setFiltroModulo] = useState("Todos");
     const [filtroAccion, setFiltroAccion] = useState("Todos");
-    const [filtroTiempo, setFiltroTiempo] = useState("Todos");
+    const [fechaInicio, setFechaInicio] = useState("");
+    const [fechaFin, setFechaFin] = useState("");
 
     useEffect(() => {
         const cargarDatos = async () => {
@@ -91,13 +92,19 @@ const TablaBitacora = () => {
         const matchModulo = filtroModulo === "Todos" || item.coleccion === filtroModulo;
         const matchAccion = filtroAccion === "Todos" || item.accion === filtroAccion;
 
-        // Filtro de tiempo sencillo
-        if (filtroTiempo === "Hoy") {
-            const hoy = new Date().setHours(0, 0, 0, 0);
-            if (item.fecha.setHours(0, 0, 0, 0) !== hoy) return false;
+        let matchTiempo = true;
+        if (fechaInicio) {
+            // Asegurarse que se calcule desde las 00:00 del día inicio
+            const fInicio = new Date(fechaInicio + "T00:00:00");
+            if (item.fecha < fInicio) matchTiempo = false;
+        }
+        if (fechaFin) {
+            // Asegurarse que se incluya hasta las 23:59 del día fin
+            const fFin = new Date(fechaFin + "T23:59:59");
+            if (item.fecha > fFin) matchTiempo = false;
         }
 
-        return matchSearch && matchModulo && matchAccion;
+        return matchSearch && matchModulo && matchAccion && matchTiempo;
     });
 
     if (cargando) return (
@@ -243,20 +250,34 @@ const TablaBitacora = () => {
                     </select>
                 </div>
 
-                {/* Filtro Fecha Rapida */}
-                <div className="flex-1 min-w-[200px]">
-                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Rango de Tiempo</label>
-                    <div className="flex gap-2">
-                        {["Todos", "Hoy"].map((t) => (
+                {/* Filtro por Rango de Fechas */}
+                <div className="flex-[2] min-w-[300px]">
+                    <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Desde / Hasta</label>
+                    <div className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
+                        <input
+                            type="date"
+                            value={fechaInicio}
+                            max={fechaFin || undefined}
+                            onChange={(e) => setFechaInicio(e.target.value)}
+                            className="flex-1 bg-slate-100 border-none rounded-xl px-3 sm:px-4 py-2.5 text-[11px] sm:text-sm focus:ring-2 focus:ring-green-700 outline-none uppercase font-bold text-slate-600"
+                        />
+                        <span className="text-slate-300 font-bold hidden sm:block">-</span>
+                        <input
+                            type="date"
+                            value={fechaFin}
+                            min={fechaInicio || undefined}
+                            onChange={(e) => setFechaFin(e.target.value)}
+                            className="flex-1 bg-slate-100 border-none rounded-xl px-3 sm:px-4 py-2.5 text-[11px] sm:text-sm focus:ring-2 focus:ring-green-700 outline-none uppercase font-bold text-slate-600"
+                        />
+                        {(fechaInicio || fechaFin) && (
                             <button
-                                key={t}
-                                onClick={() => setFiltroTiempo(t)}
-                                className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all ${filtroTiempo === t ? "bg-green-800 text-white shadow-md shadow-green-900/20" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                                    }`}
+                                onClick={() => { setFechaInicio(""); setFechaFin(""); }}
+                                className="p-2 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-100 transition-colors shrink-0"
+                                title="Limpiar fechas"
                             >
-                                {t}
+                                <span className="material-symbols-outlined text-base block">close</span>
                             </button>
-                        ))}
+                        )}
                     </div>
                 </div>
 
