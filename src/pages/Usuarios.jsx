@@ -68,58 +68,68 @@ const ALL_PERMISSIONS = [
   "PARAMETROS",
 ];
 
+const ALL_ACTIONS = ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT"];
+
+const normalizePermissions = (perms) => {
+  if (typeof perms === "object" && perms !== null && !Array.isArray(perms)) {
+    return perms;
+  }
+  const normalized = {};
+  if (Array.isArray(perms)) {
+    perms.forEach((mod) => {
+      normalized[mod] = [...ALL_ACTIONS];
+    });
+  }
+  return normalized;
+};
+
 const INITIAL_ROLES = [
   {
     id: 1,
     name: "SUPER ADMIN",
-    permissions: [
+    permissions: normalizePermissions([
       "DASHBOARD",
-      "PRODUCTOS",
-      "EMPLEADOS",
-      "CREDITOS",
-      "CUOTAS",
-      "RESERVAS",
       "USUARIOS",
       "BITACORA",
       "PARAMETROS",
-    ],
+    ]),
     estado: "Activo",
   },
   {
     id: 2,
     name: "ADMIN",
-    permissions: [
+    permissions: normalizePermissions([
       "DASHBOARD",
       "PRODUCTOS",
       "EMPLEADOS",
       "CREDITOS",
       "CUOTAS",
       "RESERVAS",
-    ],
+    ]),
     estado: "Activo",
   },
   {
     id: 3,
     name: "EDITOR CREDITOS",
-    permissions: ["DASHBOARD", "CREDITOS", "CUOTAS", "EMPLEADOS"],
+    permissions: normalizePermissions(["DASHBOARD", "CREDITOS", "CUOTAS", "EMPLEADOS"]),
     estado: "Activo",
   },
   {
     id: 4,
     name: "EDITOR INVENTARIO",
-    permissions: ["DASHBOARD", "PRODUCTOS"],
+    permissions: normalizePermissions(["DASHBOARD", "PRODUCTOS"]),
     estado: "Activo",
   },
   {
     id: 5,
     name: "EDITOR EMPLEADOS",
-    permissions: ["DASHBOARD", "EMPLEADOS", "CREDITOS"],
+    permissions: normalizePermissions(["DASHBOARD", "EMPLEADOS", "CREDITOS"]),
     estado: "Activo",
   },
   {
     id: 6,
     name: "CEO",
-    permissions: ["DASHBOARD"],
+    permissions: normalizePermissions(["DASHBOARD"]),
     estado: "Activo",
   },
 ];
@@ -248,16 +258,10 @@ export default function Usuarios() {
   const roles =
     rolesData.length > 0
       ? rolesData.map((r) => {
-          let permsArray = [];
-          if (Array.isArray(r.permisos)) {
-            permsArray = r.permisos;
-          } else if (typeof r.permisos === "object" && r.permisos !== null) {
-            permsArray = Object.keys(r.permisos);
-          }
           return {
             id: r.id,
             name: r.nombre || "",
-            permissions: permsArray,
+            permissions: normalizePermissions(r.permisos),
             estado: r.estado || "Activo",
           };
         })
@@ -401,7 +405,7 @@ export default function Usuarios() {
   });
   const [empSearch, setEmpSearch] = useState("");
   const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
-  const [newRole, setNewRole] = useState({ name: "", permissions: [] });
+  const [newRole, setNewRole] = useState({ name: "", permissions: {} });
 
   const assignableEmpleados = empleadosData.filter((emp) => {
     const isActivo = emp.estado === "Activo" || emp.estado === "active";
@@ -633,7 +637,7 @@ export default function Usuarios() {
       usuarioModifico: auth.currentUser?.email || "Admin",
     });
     setNewRolePanel(false);
-    setNewRole({ name: "", permissions: [] });
+    setNewRole({ name: "", permissions: {} });
     showToast("Rol creado exitosamente");
   };
 
@@ -646,6 +650,88 @@ export default function Usuarios() {
       statusFilter === "Cualquier Estado" || u.status === statusFilter;
     return matchSearch && matchRole && matchStatus;
   });
+
+  const renderGranularPermissions = (roleState, setRoleState) => (
+    <div className="space-y-4">
+      {ALL_PERMISSIONS.map((mod) => {
+        const activeActions = roleState.permissions[mod] || [];
+        const isAllActive = activeActions.length === ALL_ACTIONS.length;
+        
+        return (
+          <div key={mod} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <button
+              onClick={() => {
+                const newPermissions = { ...roleState.permissions };
+                if (activeActions.length > 0) {
+                  delete newPermissions[mod];
+                } else {
+                  newPermissions[mod] = [...ALL_ACTIONS];
+                }
+                setRoleState({ ...roleState, permissions: newPermissions });
+              }}
+              className={`w-full flex items-center justify-between px-4 py-3 font-bold text-sm transition-all ${
+                activeActions.length > 0 ? "bg-green-800 text-white" : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg">
+                  {activeActions.length > 0 ? "check_box" : "check_box_outline_blank"}
+                </span>
+                <span>{mod}</span>
+              </div>
+              {activeActions.length > 0 && activeActions.length < ALL_ACTIONS.length && (
+                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded text-white mix-blend-screen">
+                  Parcial
+                </span>
+              )}
+            </button>
+            
+            <AnimatePresence>
+              {activeActions.length > 0 && (
+                <motion.div
+                  initial={{ height: 0 }}
+                  animate={{ height: "auto" }}
+                  exit={{ height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-4 py-3 bg-slate-50 grid grid-cols-2 lg:grid-cols-3 gap-2 border-t border-slate-100">
+                    {ALL_ACTIONS.map((action) => {
+                      const isActive = activeActions.includes(action);
+                      return (
+                        <button
+                          key={action}
+                          onClick={() => {
+                            let newActions = isActive 
+                              ? activeActions.filter(a => a !== action) 
+                              : [...activeActions, action];
+                            const newPermissions = { ...roleState.permissions };
+                            if (newActions.length === 0) {
+                              delete newPermissions[mod];
+                            } else {
+                              newPermissions[mod] = newActions;
+                            }
+                            setRoleState({ ...roleState, permissions: newPermissions });
+                          }}
+                          className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold transition-all border ${
+                            isActive 
+                              ? "bg-green-100/50 text-green-800 border-green-200" 
+                              : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          <span className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 transition-colors ${isActive ? "bg-green-600" : "bg-slate-300"}`}></span>
+                          {action}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50/50">
@@ -994,15 +1080,17 @@ export default function Usuarios() {
                           Permisos de Acceso
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          {role.permissions.map((p, i) => (
+                          {Object.keys(role.permissions).map((p, i) => (
                             <span
                               key={i}
                               className="px-2 py-1 rounded-md bg-slate-50 text-slate-600 text-[10px] font-bold border border-slate-100"
+                              title={role.permissions[p].join(", ")}
                             >
                               {p}
+                              <span className="ml-1 text-slate-400">({role.permissions[p].length})</span>
                             </span>
                           ))}
-                          {role.permissions.length === 0 && (
+                          {Object.keys(role.permissions).length === 0 && (
                             <span className="text-[10px] text-slate-400 italic">
                               Sin permisos asignados
                             </span>
@@ -1017,7 +1105,7 @@ export default function Usuarios() {
                         onClick={() =>
                           setEditRole({
                             ...role,
-                            permissions: [...role.permissions],
+                            permissions: { ...role.permissions },
                           })
                         }
                         className="w-full py-3 rounded-xl border-2 border-slate-100 text-slate-500 font-bold text-xs hover:bg-green-800 hover:text-white hover:border-green-800 transition-all flex items-center justify-center gap-2"
@@ -1337,28 +1425,7 @@ export default function Usuarios() {
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   Permisos de Acceso
                 </p>
-                <div className="space-y-2">
-                  {ALL_PERMISSIONS.map((perm) => {
-                    const active = editRole.permissions.includes(perm);
-                    return (
-                      <button
-                        key={perm}
-                        onClick={() => {
-                          const perms = active
-                            ? editRole.permissions.filter((p) => p !== perm)
-                            : [...editRole.permissions, perm];
-                          setEditRole({ ...editRole, permissions: perms });
-                        }}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${active ? "bg-green-800 text-white" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100"}`}
-                      >
-                        <span>{perm}</span>
-                        <span className="material-symbols-outlined text-base">
-                          {active ? "check_circle" : "radio_button_unchecked"}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                {renderGranularPermissions(editRole, setEditRole)}
               </div>
             </div>
             <div className="pt-6 border-t space-y-3">
@@ -1400,28 +1467,7 @@ export default function Usuarios() {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               Seleccionar Permisos
             </p>
-            <div className="space-y-2">
-              {ALL_PERMISSIONS.map((perm) => {
-                const active = newRole.permissions.includes(perm);
-                return (
-                  <button
-                    key={perm}
-                    onClick={() => {
-                      const perms = active
-                        ? newRole.permissions.filter((p) => p !== perm)
-                        : [...newRole.permissions, perm];
-                      setNewRole({ ...newRole, permissions: perms });
-                    }}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${active ? "bg-green-800 text-white" : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-100"}`}
-                  >
-                    <span>{perm}</span>
-                    <span className="material-symbols-outlined text-base">
-                      {active ? "check_circle" : "radio_button_unchecked"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+              {renderGranularPermissions(newRole, setNewRole)}
           </div>
         </div>
         <div className="pt-6 border-t space-y-3">
