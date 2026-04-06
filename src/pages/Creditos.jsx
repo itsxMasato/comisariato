@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { collection, onSnapshot, doc, updateDoc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
+import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
 // --- Constantes de Respaldo ---
@@ -49,6 +49,7 @@ export default function Creditos() {
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const unsubC = onSnapshot(collection(db, "creditos"), (s) =>
@@ -92,28 +93,37 @@ export default function Creditos() {
       const personMatch = emp || usr || {};
 
       const pagos = cuotasData.filter(
-        (q) => String(q.creditoId) === String(c.creditoId || c.id) || String(q.empleadoId) === targetId,
+        (q) => String(q.creditoId) === String(c.id) || (c.creditoId && String(q.creditoId) === String(c.creditoId))
       );
+
+      const rawStatus = String(c.estado || c.status || "activo").toLowerCase();
+      let normStatus = "Activo";
+      if (rawStatus === "pagado" || rawStatus === "liquidado") normStatus = "Pagado";
+      else if (rawStatus === "rechazado") normStatus = "Rechazado";
+      else if (rawStatus === "pendiente") normStatus = "Pendiente";
 
       return {
         ...c,
         id: c.id,
         employee: fullEmployeeName(personMatch) || c.empleado || c.empleadoNombre || c.nombreEmpleado || "No vinculado",
+        empleadoId: targetId,
         role: emp?.departamento || usr?.rol || "N/A",
-        code: c.creditoId || `#CR-${c.id.substring(0, 4)}`,
-        montoTotal: c.totalCredito || 0,
-        cuotas: c.plazoMeses || 1,
+        code: c.creditoId || c.orderId || `#CR-${String(c.id).substring(0, 4).toUpperCase()}`,
+        montoTotal: c.totalCredito || c.total || 0,
+        cuotas: c.plazoMeses || c.mesesPlazo || c.cuotas || 1,
         pagadas: pagos.length,
         plazo: "Mensual",
         fechaInicio: c.fechaInicio?.toDate
           ? c.fechaInicio.toDate().toLocaleDateString()
-          : c.fechaInicio || "",
-        status: c.estado || "Activo",
+          : c.createdAt?.toDate
+            ? c.createdAt.toDate().toLocaleDateString()
+            : c.fechaInicio || c.createdAt || c.fecha || "",
+        status: normStatus,
         statusClass:
-          c.estado === "Activo"
+          normStatus === "Activo"
             ? "bg-green-100 text-green-800"
-            : "bg-slate-100 text-slate-600",
-        barClass: c.estado === "Activo" ? "bg-green-700" : "bg-slate-500",
+            : normStatus === "Pagado" ? "bg-slate-100 text-slate-600" : "bg-amber-100 text-amber-800",
+        barClass: normStatus === "Activo" ? "bg-green-700" : "bg-slate-500",
         historialPagos: pagos.map((p, i) => ({
           fecha: p.fechaRegistro?.toDate
             ? p.fechaRegistro.toDate().toLocaleDateString()
@@ -143,6 +153,41 @@ export default function Creditos() {
         .reduce((s, c) => s + calcSaldo(c.montoTotal, c.pagadas, c.cuotas), 0),
     [credits],
   );
+
+  const handleAbonar = async () => {
+    if (!selected) return;
+    const currentSaldo = calcSaldo(selected.montoTotal, selected.pagadas, selected.cuotas);
+    if (currentSaldo <= 0) return;
+
+    setIsSubmitting(true);
+    try {
+      const amountToPay = Math.min(calcCuota(selected.montoTotal, selected.cuotas), currentSaldo);
+      
+      await addDoc(collection(db, "cuotas"), {
+        creditoId: selected.id,
+        empleadoId: selected.empleadoId || "",
+        monto: amountToPay,
+        fechaRegistro: serverTimestamp(),
+        usuarioRegistro: auth.currentUser?.email || "Admin",
+      });
+
+      if (currentSaldo - amountToPay <= 0.05) {
+        await updateDoc(doc(db, "creditos", selected.id), {
+          estado: "pagado",
+          status: "Pagado",
+          fechaCierre: serverTimestamp(),
+        });
+        setSelected({ ...selected, status: "Pagado", pagadas: selected.pagadas + 1 });
+      } else {
+        setSelected({ ...selected, pagadas: selected.pagadas + 1 });
+      }
+    } catch (error) {
+      console.error("Error al abonar:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const totalRecaudado = useMemo(
     () =>
       credits.reduce(
@@ -497,12 +542,23 @@ export default function Creditos() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setIsDetailOpen(false)}
-                className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
-              >
-                Cerrar Detalle
-              </button>
+              <div className="grid grid-cols-1 gap-3 pt-2">
+                {selected.status === "Activo" && calcSaldo(selected.montoTotal, selected.pagadas, selected.cuotas) > 0 && (
+                  <button
+                    onClick={handleAbonar}
+                    disabled={isSubmitting}
+                    className="w-full py-4 bg-green-800 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-green-700 transition-all disabled:opacity-50"
+                  >
+                    {isSubmitting ? "Registrando..." : "Registrar Pago de Cuota"}
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsDetailOpen(false)}
+                  className="w-full py-4 bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                >
+                  Cerrar Detalle
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
