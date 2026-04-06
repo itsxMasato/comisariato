@@ -55,6 +55,7 @@ export default function Productos() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [categorias, setCategorias] = useState([]);
   const [parametros, setParametros] = useState({ porcentajeInteres: 15 });
+  const [imgUrlForm, setImgUrlForm] = useState("");
 
   // Suscripción a Firebase - Productos
   useEffect(() => {
@@ -368,6 +369,7 @@ export default function Productos() {
           <button
             onClick={() => {
               setSelectedProduct(null);
+              setImgUrlForm("");
               setIsModalOpen(true);
             }}
             className="w-full sm:w-auto bg-green-700 hover:bg-green-800 text-white px-6 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-xl shadow-green-900/20 transition-all active:scale-95 whitespace-nowrap"
@@ -522,6 +524,7 @@ export default function Productos() {
                       <button
                         onClick={() => {
                           setSelectedProduct(p);
+                          setImgUrlForm(p.img !== "https://via.placeholder.com/150?text=Sin+Foto" ? p.img : "");
                           setIsModalOpen(true);
                         }}
                         className="p-2 text-slate-400 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
@@ -600,6 +603,7 @@ export default function Productos() {
                 <img
                   id="img-preview"
                   src={
+                    imgUrlForm ||
                     selectedProduct?.img ||
                     "https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg"
                   }
@@ -628,21 +632,11 @@ export default function Productos() {
                   <input
                     name="img_url"
                     id="img_url_input"
-                    defaultValue={
-                      selectedProduct?.img !==
-                      "https://via.placeholder.com/150?text=Sin+Foto"
-                        ? selectedProduct?.img
-                        : ""
-                    }
+                    value={imgUrlForm}
                     placeholder="https://ejemplo.com/foto.jpg"
                     className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600 transition-all font-mono"
                     onChange={(e) => {
-                      const imgEl = document.getElementById("img-preview");
-                      if (imgEl) {
-                        imgEl.src =
-                          e.target.value.trim() ||
-                          "https://upload.wikimedia.org/wikipedia/commons/1/14/No_Image_Available.jpg";
-                      }
+                      setImgUrlForm(e.target.value.trim());
                     }}
                   />
                 </div>

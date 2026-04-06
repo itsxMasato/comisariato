@@ -30,10 +30,18 @@ const calcSaldo = (monto, pagadas, cuotas) =>
 const fmt = (n) =>
   `L ${Number(n).toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const fullEmployeeName = (emp) => {
+  if (!emp || Object.keys(emp).length === 0) return null;
+  const nombreCompleto = [emp.nombres, emp.apellidos].filter(Boolean).join(" ").trim();
+  if (nombreCompleto) return nombreCompleto;
+  return emp.nombre || emp.displayName || null;
+};
+
 export default function Creditos() {
   const { userName } = useAuth();
   const [creditsData, setCreditsData] = useState([]);
   const [empData, setEmpData] = useState([]);
+  const [usuariosData, setUsuariosData] = useState([]);
   const [cuotasData, setCuotasData] = useState([]);
   const [parametros, setParametros] = useState({ porcentajeInteres: 0 });
 
@@ -49,6 +57,9 @@ export default function Creditos() {
     const unsubE = onSnapshot(collection(db, "empleados"), (s) =>
       setEmpData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
     );
+    const unsubU = onSnapshot(collection(db, "usuarios"), (s) =>
+      setUsuariosData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
     const unsubQ = onSnapshot(collection(db, "cuotas"), (s) =>
       setCuotasData(s.docs.map((d) => ({ id: d.id, ...d.data() }))),
     );
@@ -58,6 +69,7 @@ export default function Creditos() {
     return () => {
       unsubC();
       unsubE();
+      unsubU();
       unsubQ();
       unsubP();
     };
@@ -66,21 +78,28 @@ export default function Creditos() {
   const credits = useMemo(() => {
     if (creditsData.length === 0) return INITIAL_CREDITS;
     return creditsData.map((c) => {
+      const targetId = String(c.empleadoId || c.usuarioId || "").trim();
       const emp =
         empData.find(
-          (e) => e.empleadoId === c.empleadoId || e.id === c.empleadoId,
-        ) || {};
+          (e) => String(e.id) === targetId || String(e.empleadoId) === targetId || String(e.uid) === targetId || String(e.dni) === targetId
+        );
+      
+      const usr = 
+        usuariosData.find(
+          (u) => String(u.id) === targetId || String(u.uid) === targetId || String(u.empleadoId) === targetId || String(u.dni) === targetId
+        );
+
+      const personMatch = emp || usr || {};
+
       const pagos = cuotasData.filter(
-        (q) => q.creditoId === c.creditoId || q.empleadoId === c.empleadoId,
+        (q) => String(q.creditoId) === String(c.creditoId || c.id) || String(q.empleadoId) === targetId,
       );
 
       return {
         ...c,
         id: c.id,
-        employee: emp.nombres
-          ? `${emp.nombres} ${emp.apellidos}`
-          : "No vinculado",
-        role: emp.departamento || "N/A",
+        employee: fullEmployeeName(personMatch) || c.empleado || c.empleadoNombre || c.nombreEmpleado || "No vinculado",
+        role: emp?.departamento || usr?.rol || "N/A",
         code: c.creditoId || `#CR-${c.id.substring(0, 4)}`,
         montoTotal: c.totalCredito || 0,
         cuotas: c.plazoMeses || 1,
@@ -104,7 +123,7 @@ export default function Creditos() {
         })),
       };
     });
-  }, [creditsData, empData, cuotasData]);
+  }, [creditsData, empData, usuariosData, cuotasData]);
 
   const creditosFiltrados = useMemo(() => {
     return credits.filter((c) => {
