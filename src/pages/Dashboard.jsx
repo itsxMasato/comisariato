@@ -474,34 +474,20 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-green-700">
-          <div className="p-2 rounded-xl bg-green-100 text-green-800 w-fit mb-4">
-            <span className="material-symbols-outlined">trending_up</span>
-          </div>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-            Créditos Activos
-          </p>
-          <h3 className="text-3xl font-extrabold text-green-700 mt-1">
-            {monthlyData.creditosActivos}
-          </h3>
-          <p className="text-slate-400 text-xs mt-2 font-medium">
-            Operativos este mes
-          </p>
-        </article>
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         <article className="bg-white p-6 rounded-2xl shadow-sm border-l-4 border-emerald-700">
           <div className="p-2 rounded-xl bg-emerald-100 text-emerald-800 w-fit mb-4">
             <span className="material-symbols-outlined">thumb_up</span>
           </div>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-            Créditos Aprobados
+            Créditos Activos
           </p>
           <h3 className="text-3xl font-extrabold text-emerald-700 mt-1">
             {monthlyData.creditosAprobados}
           </h3>
           <p className="text-slate-400 text-xs mt-2 font-medium">
-            Solicitudes aprobadas este mes
+            Creditos Activos este mes
           </p>
         </article>
 
