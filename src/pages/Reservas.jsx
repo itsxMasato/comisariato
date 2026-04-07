@@ -356,6 +356,7 @@ export default function Reservas() {
     setSelectedReserva(null);
     setIsRejecting(false);
     setObservacion("");
+    setViewHistory(null);
   };
 
   const handleApprove = () => {

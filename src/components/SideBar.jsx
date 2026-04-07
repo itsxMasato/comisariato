@@ -24,9 +24,8 @@ export default function SideBar({ isOpen, setIsOpen }) {
       {/* Botón Flotante para Ocultar/Mostrar (Pegado al borde) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed top-6 z-50 bg-green-950 text-white p-2 rounded-r-xl shadow-lg transition-all duration-300 hover:bg-green-900 focus:outline-none flex items-center justify-center ${
-          isOpen ? "left-64" : "left-0"
-        }`}
+        className={`fixed top-6 z-50 bg-green-950 text-white p-2 rounded-r-xl shadow-lg transition-all duration-300 hover:bg-green-900 focus:outline-none flex items-center justify-center ${isOpen ? "left-64" : "left-0"
+          }`}
         title={isOpen ? "Ocultar menú" : "Mostrar menú"}
       >
         <span className="material-symbols-outlined text-green-300">
@@ -44,9 +43,8 @@ export default function SideBar({ isOpen, setIsOpen }) {
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed left-0 top-0 h-full flex flex-col z-40 w-64 bg-green-950 shadow-2xl transition-transform duration-300 ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed left-0 top-0 h-full flex flex-col z-40 w-64 bg-green-950 shadow-2xl transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         {/* Brand */}
         <div className="px-4 py-6">
@@ -54,9 +52,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
             className="text-lg font-bold text-white tracking-tight flex items-center gap-2"
             style={{ fontFamily: "Manrope, sans-serif" }}
           >
-            <span className="material-symbols-outlined text-green-300 text-xl">
-              agriculture
-            </span>
+            <img src="/favicon.ico?v=2" alt="Logo Comisariato" className="w-6 h-6 object-contain" />
             Comisariato
           </h1>
         </div>
@@ -153,7 +149,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
               <div className="mt-4 mb-2 px-4 text-[0.65rem] font-bold text-green-100/40 uppercase tracking-wider">
                 Administración
               </div>
-              
+
               {hasPermission(role, MODULES.USUARIOS, "VIEW") && (
                 <NavLink to="/usuarios" className={linkClass}>
                   <span className="material-symbols-outlined">
@@ -167,7 +163,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
                   </span>
                 </NavLink>
               )}
-              
+
               {hasPermission(role, MODULES.BITACORA, "VIEW") && (
                 <NavLink to="/bitacora" className={linkClass}>
                   <span className="material-symbols-outlined">history</span>
@@ -179,7 +175,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
                   </span>
                 </NavLink>
               )}
-              
+
               {hasPermission(role, MODULES.PARAMETROS, "VIEW") && (
                 <NavLink to="/datosvariables" className={linkClass}>
                   <span className="material-symbols-outlined">tune</span>
@@ -201,8 +197,7 @@ export default function SideBar({ isOpen, setIsOpen }) {
           <NavLink
             to="/perfil"
             className={({ isActive }) =>
-              `flex items-center gap-3 p-2 -mx-2 rounded-xl transition-colors ${
-                isActive ? "bg-green-900/50" : "hover:bg-green-900/30"
+              `flex items-center gap-3 p-2 -mx-2 rounded-xl transition-colors ${isActive ? "bg-green-900/50" : "hover:bg-green-900/30"
               }`
             }
           >
