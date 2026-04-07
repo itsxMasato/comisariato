@@ -10,7 +10,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showTransition, setShowTransition] = useState(false);
-  const { login } = useAuth();
+  const { login, role } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -29,10 +29,15 @@ export default function Login() {
           title: "Error al iniciar sesión",
           description: "Correo o contraseña incorrectos.",
         });
+      } else if (err.code === "auth/too-many-requests") {
+        sileo.error({
+          title: "Demasiados intentos",
+          description: "Por seguridad, el acceso a esta cuenta ha sido bloqueado temporalmente. Por favor, espera un par de minutos e intenta de nuevo.",
+        });
       } else {
         sileo.error({
           title: "Error al iniciar sesión",
-          description: "Ocurrió un error al intentar iniciar sesión.",
+          description: "Ocurrió un error al intentar iniciar sesión. " + err.code,
         });
       }
     } finally {

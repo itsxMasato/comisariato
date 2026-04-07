@@ -9,6 +9,24 @@ import Login from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
 import Error403 from "../pages/Error403";
 import Perfil from "../pages/Perfil";
+import { useAuth } from "../auth/AuthProvider";
+import AppMovil from "../pages/AppMovil"; // App Móvil Landing
+
+import { hasPermission } from "../utils/roles";
+
+const HomeRedirect = () => {
+  const { role, loading } = useAuth();
+  
+  if (loading) return null;
+
+  if (hasPermission(role, MODULES.DASHBOARD, "VIEW")) {
+    return <Navigate to="/dashboard" replace />;
+  } else if (hasPermission(role, MODULES.APP_MOVIL, "VIEW")) {
+    return <Navigate to="/app-movil" replace />;
+  }
+  
+  return <Navigate to="/403" replace />;
+};
 
 // Productos
 import Productos from "../pages/Productos";
@@ -46,7 +64,6 @@ export default function AppRouter() {
 
         {/* Protegidas bajo AdminLayout */}
         <Route
-          path="/"
           element={
             <ProtectedRoute>
               <AdminLayout />
@@ -54,53 +71,61 @@ export default function AppRouter() {
           }
         >
           {/* Dashboard */}
-          <Route index element={
+          <Route path="/" element={<HomeRedirect />} />
+          
+          <Route path="/dashboard" element={
             <RoleRoute moduleName={MODULES.DASHBOARD}>
               <Dashboard />
             </RoleRoute>
           } />
-          <Route path="perfil" element={<Perfil />} />
+
+          <Route path="/app-movil" element={
+            <RoleRoute moduleName={MODULES.APP_MOVIL}>
+              <AppMovil />
+            </RoleRoute>
+          } />
+          <Route path="/perfil" element={<Perfil />} />
 
           {/* Productos */}
-          <Route path="productos" element={
+          <Route path="/productos" element={
             <RoleRoute moduleName={MODULES.PRODUCTOS}>
               <Productos />
             </RoleRoute>
           } />
 
           {/* Empleados */}
-          <Route path="empleados" element={
+          <Route path="/empleados" element={
             <RoleRoute moduleName={MODULES.EMPLEADOS}>
               <Empleados />
             </RoleRoute>
           } />
 
           {/* Créditos */}
-          <Route path="creditos" element={
+          <Route path="/creditos" element={
             <RoleRoute moduleName={MODULES.CREDITOS} requiredAction={"VIEW"}>
               <Creditos />
             </RoleRoute>
           } />
-          <Route path="creditos/nuevo" element={
+          <Route path="/creditos/nuevo" element={
             <RoleRoute moduleName={MODULES.CREDITOS} requiredAction={"CREATE"}>
               <NuevoCredito />
             </RoleRoute>
           } />
 
           {/* Cuotas / Pagos */}
-          <Route path="cuotas" element={
+          <Route path="/cuotas" element={
             <RoleRoute moduleName={MODULES.CUOTAS} requiredAction={"VIEW"}>
               <Cuotas />
             </RoleRoute>
           } />
-          <Route path="cuotas/pagar" element={
+          <Route path="/cuotas/pagar" element={
             <RoleRoute moduleName={MODULES.CUOTAS} requiredAction={"EDIT"}>
               <RegistrarPago />
             </RoleRoute>
           } />
 
           {/* Reservas (app móvil → portal) */}
-          <Route path="reservas" element={
+          <Route path="/reservas" element={
             <RoleRoute moduleName={MODULES.RESERVAS}>
               <Reservas />
             </RoleRoute>
@@ -108,7 +133,7 @@ export default function AppRouter() {
 
           {/* Usuarios del sistema — solo admin */}
           <Route
-            path="usuarios"
+            path="/usuarios"
             element={
               <RoleRoute moduleName={MODULES.USUARIOS}>
                 <Usuarios />
@@ -116,7 +141,7 @@ export default function AppRouter() {
             }
           />
           <Route
-            path="bitacora"
+            path="/bitacora"
             element={
               <RoleRoute moduleName={MODULES.BITACORA}>
                 <Bitacora />
@@ -124,7 +149,7 @@ export default function AppRouter() {
             }
           />
           <Route
-            path="datosvariables"
+            path="/datosvariables"
             element={
               <RoleRoute moduleName={MODULES.PARAMETROS}>
                 <DatosVariables />
@@ -133,14 +158,14 @@ export default function AppRouter() {
           />
 
           {/* 403 para rutas protegidas sin permiso */}
-          <Route path="403" element={<Error403 />} />
+          <Route path="/403" element={<Error403 />} />
 
           {/* Catch-all dentro del layout */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
 
-        {/* Catch-all global */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+          {/* Catch-all global */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </>
   );
