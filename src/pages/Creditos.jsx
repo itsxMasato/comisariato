@@ -50,6 +50,9 @@ export default function Creditos() {
   const [search, setSearch] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCobroModalOpen, setIsCobroModalOpen] = useState(false);
+  const [cobroStatusMessage, setCobroStatusMessage] = useState("");
+  const [cobroStatusType, setCobroStatusType] = useState("");
 
   useEffect(() => {
     const unsubC = onSnapshot(collection(db, "creditos"), (s) =>
@@ -84,8 +87,8 @@ export default function Creditos() {
         empData.find(
           (e) => String(e.id) === targetId || String(e.empleadoId) === targetId || String(e.uid) === targetId || String(e.dni) === targetId
         );
-      
-      const usr = 
+
+      const usr =
         usuariosData.find(
           (u) => String(u.id) === targetId || String(u.uid) === targetId || String(u.empleadoId) === targetId || String(u.dni) === targetId
         );
@@ -162,7 +165,7 @@ export default function Creditos() {
     setIsSubmitting(true);
     try {
       const amountToPay = Math.min(calcCuota(selected.montoTotal, selected.cuotas), currentSaldo);
-      
+
       await addDoc(collection(db, "cuotas"), {
         creditoId: selected.id,
         empleadoId: selected.empleadoId || "",
@@ -183,6 +186,65 @@ export default function Creditos() {
       }
     } catch (error) {
       console.error("Error al abonar:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenCobroMasivo = () => {
+    setCobroStatusMessage("");
+    setCobroStatusType("");
+    setIsCobroModalOpen(true);
+  };
+
+  const executeCobroMasivo = async () => {
+    const activos = credits.filter((c) => c.status === "Activo" && calcSaldo(c.montoTotal, c.pagadas, c.cuotas) > 0);
+
+    if (activos.length === 0) {
+      setCobroStatusType("error");
+      setCobroStatusMessage("No hay créditos activos pendientes para cobrar este mes.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setCobroStatusType("");
+    setCobroStatusMessage("");
+
+    try {
+      const promesas = activos.map(async (credito) => {
+        const currentSaldo = calcSaldo(credito.montoTotal, credito.pagadas, credito.cuotas);
+        if (currentSaldo <= 0) return;
+
+        const amountToPay = Math.min(calcCuota(credito.montoTotal, credito.cuotas), currentSaldo);
+
+        await addDoc(collection(db, "cuotas"), {
+          creditoId: credito.id,
+          empleadoId: credito.empleadoId || "",
+          monto: amountToPay,
+          fechaRegistro: serverTimestamp(),
+          usuarioRegistro: auth.currentUser?.email || "Admin",
+        });
+
+        if (currentSaldo - amountToPay <= 0.05) {
+          await updateDoc(doc(db, "creditos", credito.id), {
+            estado: "pagado",
+            status: "Pagado",
+            fechaCierre: serverTimestamp(),
+          });
+        }
+      });
+
+      await Promise.all(promesas);
+      setCobroStatusType("success");
+      setCobroStatusMessage(`¡Se procesaron ${activos.length} cuotas exitosamente!`);
+      setTimeout(() => {
+        setIsCobroModalOpen(false);
+        setCobroStatusMessage("");
+      }, 2000);
+    } catch (error) {
+      console.error("Error al realizar cobro masivo:", error);
+      setCobroStatusType("error");
+      setCobroStatusMessage("Hubo un error procesando el cobro mensual.");
     } finally {
       setIsSubmitting(false);
     }
@@ -249,8 +311,8 @@ export default function Creditos() {
               </thead>
               <tbody class="text-[11px]">
                 ${creditosFiltrados
-                  .map(
-                    (c) => `
+        .map(
+          (c) => `
                   <tr class="border-b border-gray-100">
                     <td class="px-4 py-3 font-mono text-gray-400">${c.code}</td>
                     <td class="px-4 py-3 font-bold text-gray-800">${c.employee}</td>
@@ -259,8 +321,8 @@ export default function Creditos() {
                     <td class="px-4 py-3 text-center uppercase font-black text-[9px]">${c.status}</td>
                   </tr>
                 `,
-                  )
-                  .join("")}
+        )
+        .join("")}
               </tbody>
             </table>
           </section>
@@ -319,6 +381,19 @@ export default function Creditos() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            {credits.some(c => c.status === "Activo" && calcSaldo(c.montoTotal, c.pagadas, c.cuotas) > 0) && (
+              <button
+                onClick={handleOpenCobroMasivo}
+                disabled={isSubmitting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-green-700 px-5 py-3 text-sm font-bold text-white hover:bg-green-600 transition-colors disabled:opacity-50"
+                title="Cobrar este mes a todos los activos"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  payments
+                </span>{" "}
+                {isSubmitting ? "Procesando..." : "Cobrar Mes"}
+              </button>
+            )}
             <button
               onClick={handleExportReport}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-black transition-colors"
@@ -559,6 +634,53 @@ export default function Creditos() {
                   Cerrar Detalle
                 </button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* MODAL COBRO MASIVO */}
+      {isCobroModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl p-8 flex flex-col items-center text-center space-y-6"
+          >
+            <div className="bg-green-100 text-green-800 p-4 rounded-full">
+              <span className="material-symbols-outlined text-4xl">payments</span>
+            </div>
+            <div>
+              <h3 className="font-black text-2xl text-slate-900 mb-2 tracking-tight">Cobro Mensual</h3>
+              <p className="text-sm font-medium text-slate-500">
+                Se cobrará 1 cuota mensual a todos los {credits.filter(c => c.status === "Activo" && calcSaldo(c.montoTotal, c.pagadas, c.cuotas) > 0).length} créditos que se encuentren <strong>Activos</strong>.
+              </p>
+            </div>
+
+            {cobroStatusMessage && (
+              <div className={`p-4 rounded-xl text-sm font-bold w-full ${cobroStatusType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                {cobroStatusMessage}
+              </div>
+            )}
+
+            <div className="flex gap-3 w-full pt-2">
+              <button
+                onClick={() => {
+                  setIsCobroModalOpen(false);
+                  setCobroStatusMessage("");
+                }}
+                disabled={isSubmitting}
+                className="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={executeCobroMasivo}
+                disabled={isSubmitting || cobroStatusType === "success"}
+                className="flex-1 py-3.5 bg-green-800 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-green-700 transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? "Procesando..." : "Confirmar Cobro"}
+              </button>
             </div>
           </motion.div>
         </div>
