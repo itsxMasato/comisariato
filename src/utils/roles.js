@@ -18,6 +18,7 @@ export const MODULES = {
   USUARIOS: "USUARIOS",
   BITACORA: "BITACORA",
   PARAMETROS: "PARAMETROS",
+  APP_MOVIL: "APP_MOVIL",
 };
 
 export const ACTIONS = {
@@ -62,7 +63,9 @@ export const ROLE_PERMISSIONS = {
   [ROLES.CEO]: {
     [MODULES.DASHBOARD]: [ACTIONS.VIEW],
   },
-  [ROLES.EMPLEADO]: {}, // Sin acceso a la web
+  [ROLES.EMPLEADO]: {
+    [MODULES.APP_MOVIL]: [ACTIONS.VIEW],
+  },
 };
 
 export let DYNAMIC_ROLES = {};
@@ -102,6 +105,12 @@ export const hasPermission = (userRole, moduleName, action = ACTIONS.VIEW) => {
   if (rolePerms["*"] && rolePerms["*"].includes("*")) return true;
 
   const modPerms = rolePerms[moduleName];
+  
+  // Excepción dura: el EMPLEADO siempre puede ver la APP_MOVIL aunque no esté en BD
+  if (currentRole === ROLES.EMPLEADO && moduleName === MODULES.APP_MOVIL) {
+    if (action === ACTIONS.VIEW) return true;
+  }
+
   if (!modPerms) return false;
 
   // Acceso total al módulo

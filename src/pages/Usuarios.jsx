@@ -13,6 +13,7 @@ import {
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, secondaryAuth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
+import emailjs from "@emailjs/browser";
 
 function AvatarWithFallback({ name, img, size = "md" }) {
   const sizes = {
@@ -111,7 +112,12 @@ const INITIAL_ROLES = [
   {
     id: 3,
     name: "EDITOR CREDITOS",
-    permissions: normalizePermissions(["DASHBOARD", "CREDITOS", "CUOTAS", "EMPLEADOS"]),
+    permissions: normalizePermissions([
+      "DASHBOARD",
+      "CREDITOS",
+      "CUOTAS",
+      "EMPLEADOS",
+    ]),
     estado: "Activo",
   },
   {
@@ -336,8 +342,8 @@ export default function Usuarios() {
               </thead>
               <tbody class="text-[11px]">
                 ${listToExport
-        .map(
-          (p) => `
+                  .map(
+                    (p) => `
                   <tr class="border-b border-gray-100">
                     <td class="px-4 py-3 font-bold text-gray-800">${p.name}</td>
                     <td class="px-4 py-3 font-mono text-gray-400">${p.email}</td>
@@ -346,8 +352,8 @@ export default function Usuarios() {
                     <td class="px-4 py-3 text-right text-gray-400">${p.lastAccess || "N/A"}</td>
                   </tr>
                 `,
-        )
-        .join("")}
+                  )
+                  .join("")}
               </tbody>
             </table>
           </section>
@@ -412,16 +418,20 @@ export default function Usuarios() {
     const yaAsignado = usersData.some(
       (u) =>
         (u.empleadoId === emp.id && u.empleadoId) ||
-        (u.uid === emp.id) ||
-        (u.correo && u.correo === emp.correo)
+        u.uid === emp.id ||
+        (u.correo && u.correo === emp.correo),
     );
     return isActivo && !yaAsignado;
   });
 
   const filteredAssignables = assignableEmpleados.filter((emp) => {
-    const fullName = `${emp.nombres || ""} ${emp.apellidos || ""}`.toLowerCase();
+    const fullName =
+      `${emp.nombres || ""} ${emp.apellidos || ""}`.toLowerCase();
     const searchLow = empSearch.toLowerCase();
-    return fullName.includes(searchLow) || (emp.departamento || "").toLowerCase().includes(searchLow);
+    return (
+      fullName.includes(searchLow) ||
+      (emp.departamento || "").toLowerCase().includes(searchLow)
+    );
   });
 
   // ── Usuarios ──────────────────────────────────────────────
@@ -500,10 +510,44 @@ export default function Usuarios() {
         try {
           await updateDoc(doc(db, "empleados", newUser.empleadoId), {
             uid: cred.user.uid,
-            usuarioId: cred.user.uid
+            usuarioId: cred.user.uid,
           });
-        } catch (e) { console.error("Error ligando user a empleado", e); }
+        } catch (e) {
+          console.error("Error ligando user a empleado", e);
+        }
       }
+
+      // ── Integración de Correo Electrónico (EmailJS) ──
+      const SERVICE_ID = "service_uuwzxre";
+      const TEMPLATE_ID = "template_fykn0jj";
+      const PUBLIC_KEY = "34Zt9nIz6MifH_gR9";
+
+      if (SERVICE_ID !== "TU_SERVICE_ID" && TEMPLATE_ID !== "TU_TEMPLATE_ID") {
+        try {
+          await emailjs.send(
+            SERVICE_ID,
+            TEMPLATE_ID,
+            {
+              to_email: newUser.email,
+              user_name: newUser.name,
+              user_role: newUser.role || activeRoles[0]?.name,
+              temp_password: generatedPass,
+            },
+            PUBLIC_KEY,
+          );
+          console.log("Correo de bienvenida enviado exitosamente.");
+        } catch (emailErr) {
+          console.error("Error al enviar el correo:", emailErr);
+          showToast(
+            "Usuario creado, pero hubo un error con el servidor de correos.",
+          );
+        }
+      } else {
+        console.warn(
+          "EmailJS no está configurado por completo. Falta tu TEMPLATE_ID.",
+        );
+      }
+      // ────────────────────────────────────────────────
 
       setIsPanelOpen(false);
       setNewUser({
@@ -557,20 +601,24 @@ export default function Usuarios() {
             tipoModificacion: "Cambio de Rol",
             usuarioModifico: auth.currentUser?.email || "Admin",
           });
-          
+
           if (next === "Deshabilitado") {
-            const affectedUsers = users.filter((u) => u.role === role.name && u.status === "Activo");
-            const updatePromises = affectedUsers.map(u => 
+            const affectedUsers = users.filter(
+              (u) => u.role === role.name && u.status === "Activo",
+            );
+            const updatePromises = affectedUsers.map((u) =>
               updateDoc(doc(db, "usuarios", u.id), {
                 estado: "Deshabilitado",
                 fechaActualizacion: Timestamp.now(),
                 tipoModificacion: "Cascada - Rol Deshabilitado",
-                usuarioModifico: auth.currentUser?.email || "Sistema"
-              })
+                usuarioModifico: auth.currentUser?.email || "Sistema",
+              }),
             );
             if (updatePromises.length > 0) {
               await Promise.all(updatePromises);
-              showToast(`Rol deshabilitado. Se deshabilitaron ${updatePromises.length} usuarios en cascada.`);
+              showToast(
+                `Rol deshabilitado. Se deshabilitaron ${updatePromises.length} usuarios en cascada.`,
+              );
             } else {
               showToast(`Rol "${role.name}" deshabilitado`);
             }
@@ -594,16 +642,18 @@ export default function Usuarios() {
       onConfirm: async () => {
         try {
           // Primero, deshabilitar a todos los usuarios con este rol para revocarles el acceso
-          const affectedUsers = users.filter((u) => u.role === role.name && u.status === "Activo");
-          const updatePromises = affectedUsers.map(u => 
+          const affectedUsers = users.filter(
+            (u) => u.role === role.name && u.status === "Activo",
+          );
+          const updatePromises = affectedUsers.map((u) =>
             updateDoc(doc(db, "usuarios", u.id), {
               estado: "Deshabilitado",
               fechaActualizacion: Timestamp.now(),
               tipoModificacion: "Cascada - Rol Eliminado",
-              usuarioModifico: auth.currentUser?.email || "Sistema"
-            })
+              usuarioModifico: auth.currentUser?.email || "Sistema",
+            }),
           );
-          
+
           if (updatePromises.length > 0) {
             await Promise.all(updatePromises);
           }
@@ -611,9 +661,11 @@ export default function Usuarios() {
           // Luego eliminar el rol
           await deleteDoc(doc(db, "roles", role.id));
           setConfirmData(null);
-          
+
           if (updatePromises.length > 0) {
-            showToast(`Rol eliminado. Se desactivaron ${updatePromises.length} usuarios huérfanos.`);
+            showToast(
+              `Rol eliminado. Se desactivaron ${updatePromises.length} usuarios huérfanos.`,
+            );
           } else {
             showToast(`Rol "${role.name}" eliminado definitivamente`);
           }
@@ -651,14 +703,37 @@ export default function Usuarios() {
     return matchSearch && matchRole && matchStatus;
   });
 
+  const MOD_LABELS = {
+    "DASHBOARD": "Tablero Principal (Dashboard)",
+    "PRODUCTOS": "Catálogo de Productos",
+    "EMPLEADOS": "Nómina de Empleados",
+    "CREDITOS": "Créditos de Empleados",
+    "CUOTAS": "Gestión de Cuotas",
+    "RESERVAS": "Reservas de Productos",
+    "USUARIOS": "Seguridad y Usuarios",
+    "BITACORA": "Registro de Actividad",
+    "PARAMETROS": "Ajustes del Sistema"
+  };
+
+  const ACTION_LABELS = {
+    "VIEW": { label: "Solo Lectura", icon: "visibility" },
+    "CREATE": { label: "Añadir Nuevo", icon: "add_circle" },
+    "EDIT": { label: "Modificar", icon: "edit_document" },
+    "DELETE": { label: "Eliminar", icon: "delete" },
+    "EXPORT": { label: "Exportar PDF", icon: "picture_as_pdf" }
+  };
+
   const renderGranularPermissions = (roleState, setRoleState) => (
     <div className="space-y-4">
       {ALL_PERMISSIONS.map((mod) => {
         const activeActions = roleState.permissions[mod] || [];
         const isAllActive = activeActions.length === ALL_ACTIONS.length;
-        
+
         return (
-          <div key={mod} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <div
+            key={mod}
+            className={`border rounded-2xl overflow-hidden transition-all duration-300 ${activeActions.length > 0 ? "border-green-700 shadow-md" : "border-slate-200 bg-white"}`}
+          >
             <button
               onClick={() => {
                 const newPermissions = { ...roleState.permissions };
@@ -669,40 +744,51 @@ export default function Usuarios() {
                 }
                 setRoleState({ ...roleState, permissions: newPermissions });
               }}
-              className={`w-full flex items-center justify-between px-4 py-3 font-bold text-sm transition-all ${
-                activeActions.length > 0 ? "bg-green-800 text-white" : "text-slate-600 hover:bg-slate-50"
+              className={`w-full flex flex-col sm:flex-row items-start sm:items-center justify-between px-5 py-4 font-black transition-all gap-3 ${
+                isAllActive
+                  ? "bg-green-800 text-white"
+                  : activeActions.length > 0 
+                  ? "bg-gradient-to-r from-emerald-600 to-green-700 text-white" 
+                  : "hover:bg-slate-50 text-slate-600"
               }`}
             >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg">
-                  {activeActions.length > 0 ? "check_box" : "check_box_outline_blank"}
+              <div className="flex items-center gap-3 truncate w-full sm:w-auto">
+                <span className={`material-symbols-outlined text-xl shrink-0 transition-all ${activeActions.length > 0 ? "text-green-200" : "text-slate-400"}`}>
+                  {isAllActive
+                    ? "check_box"
+                    : activeActions.length > 0
+                    ? "indeterminate_check_box"
+                    : "check_box_outline_blank"}
                 </span>
-                <span>{mod}</span>
+                <span className="uppercase tracking-widest text-xs truncate text-left">{MOD_LABELS[mod] || mod}</span>
               </div>
-              {activeActions.length > 0 && activeActions.length < ALL_ACTIONS.length && (
-                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded text-white mix-blend-screen">
-                  Parcial
-                </span>
-              )}
+              {activeActions.length > 0 &&
+                !isAllActive && (
+                  <span className="shrink-0 whitespace-nowrap text-[9px] bg-white/20 px-3 py-1 rounded-full text-white mix-blend-screen shadow-inner uppercase tracking-widest border border-white/30 backdrop-blur-sm">
+                    Acceso Parcial
+                  </span>
+                )}
             </button>
-            
+
             <AnimatePresence>
               {activeActions.length > 0 && (
                 <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: "auto" }}
-                  exit={{ height: 0 }}
-                  className="overflow-hidden"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden bg-slate-50 border-t border-green-800/10"
                 >
-                  <div className="px-4 py-3 bg-slate-50 grid grid-cols-2 lg:grid-cols-3 gap-2 border-t border-slate-100">
+                  <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {ALL_ACTIONS.map((action) => {
                       const isActive = activeActions.includes(action);
+                      const tInfo = ACTION_LABELS[action] || { label: action, icon: "rule" };
+
                       return (
                         <button
                           key={action}
                           onClick={() => {
-                            let newActions = isActive 
-                              ? activeActions.filter(a => a !== action) 
+                            let newActions = isActive
+                              ? activeActions.filter((a) => a !== action)
                               : [...activeActions, action];
                             const newPermissions = { ...roleState.permissions };
                             if (newActions.length === 0) {
@@ -710,16 +796,21 @@ export default function Usuarios() {
                             } else {
                               newPermissions[mod] = newActions;
                             }
-                            setRoleState({ ...roleState, permissions: newPermissions });
+                            setRoleState({
+                              ...roleState,
+                              permissions: newPermissions,
+                            });
                           }}
-                          className={`flex items-center gap-2 px-2 py-2 rounded-lg text-xs font-bold transition-all border ${
-                            isActive 
-                              ? "bg-green-100/50 text-green-800 border-green-200" 
-                              : "bg-white text-slate-500 border-slate-200 hover:bg-slate-100"
+                          className={`flex justify-start items-center gap-2 px-3 py-3 rounded-xl border-2 font-bold text-[10px] uppercase tracking-wide transition-all active:scale-[0.98] ${
+                            isActive
+                              ? "bg-green-100 border-green-600/40 text-green-900 shadow-sm"
+                              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-100"
                           }`}
                         >
-                          <span className={`w-2.5 h-2.5 rounded-sm flex-shrink-0 transition-colors ${isActive ? "bg-green-600" : "bg-slate-300"}`}></span>
-                          {action}
+                          <span className={`material-symbols-outlined text-base shrink-0 ${isActive ? "text-green-700" : "text-slate-400"}`}>
+                            {isActive ? "check_circle" : "radio_button_unchecked"}
+                          </span>
+                          <span className="flex-1 text-left truncate">{tInfo.label}</span>
                         </button>
                       );
                     })}
@@ -807,15 +898,6 @@ export default function Usuarios() {
                     ))}
                   </div>
                 </div>
-                <button
-                  onClick={() => setIsPanelOpen(true)}
-                  className="text-white px-6 py-3 flex-1 sm:flex-none rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg bg-green-800 hover:bg-green-900 transition-all active:scale-95"
-                >
-                  <span className="material-symbols-outlined text-lg">
-                    person_add
-                  </span>
-                  <span>Nuevo Usuario</span>
-                </button>
               </div>
             </div>
 
@@ -1087,7 +1169,9 @@ export default function Usuarios() {
                               title={role.permissions[p].join(", ")}
                             >
                               {p}
-                              <span className="ml-1 text-slate-400">({role.permissions[p].length})</span>
+                              <span className="ml-1 text-slate-400">
+                                ({role.permissions[p].length})
+                              </span>
                             </span>
                           ))}
                           {Object.keys(role.permissions).length === 0 && (
@@ -1117,10 +1201,11 @@ export default function Usuarios() {
                       </button>
                       <button
                         onClick={() => toggleRoleStatus(role)}
-                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${isDisabled
-                          ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
-                          : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
-                          }`}
+                        className={`w-full py-2.5 rounded-xl font-bold text-xs border-2 transition-all flex items-center justify-center gap-1 ${
+                          isDisabled
+                            ? "border-green-200 text-green-700 hover:bg-green-700 hover:text-white hover:border-green-700"
+                            : "border-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500"
+                        }`}
                       >
                         <span className="material-symbols-outlined text-sm">
                           {isDisabled ? "lock_open" : "lock"}
@@ -1164,7 +1249,12 @@ export default function Usuarios() {
                   setEmpSearch(e.target.value);
                   setEmpDropdownOpen(true);
                   if (newUser.empleadoId) {
-                    setNewUser({ ...newUser, empleadoId: "", name: "", email: "" });
+                    setNewUser({
+                      ...newUser,
+                      empleadoId: "",
+                      name: "",
+                      email: "",
+                    });
                   }
                 }}
                 onFocus={() => setEmpDropdownOpen(true)}
@@ -1197,7 +1287,8 @@ export default function Usuarios() {
                         }}
                       >
                         <p className="text-sm font-bold text-slate-800 capitalize">
-                          {emp.nombres?.toLowerCase()} {emp.apellidos?.toLowerCase()}
+                          {emp.nombres?.toLowerCase()}{" "}
+                          {emp.apellidos?.toLowerCase()}
                         </p>
                         <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                           {emp.departamento || "Sin Depto."}
@@ -1409,12 +1500,13 @@ export default function Usuarios() {
                     <button
                       key={s}
                       onClick={() => setEditRole({ ...editRole, estado: s })}
-                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${(editRole.estado || "Activo") === s
-                        ? s === "Activo"
-                          ? "bg-green-800 text-white"
-                          : "bg-rose-600 text-white"
-                        : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                        }`}
+                      className={`flex-1 py-3 rounded-xl font-bold text-xs transition-all ${
+                        (editRole.estado || "Activo") === s
+                          ? s === "Activo"
+                            ? "bg-green-800 text-white"
+                            : "bg-rose-600 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      }`}
                     >
                       {s}
                     </button>
@@ -1467,7 +1559,7 @@ export default function Usuarios() {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
               Seleccionar Permisos
             </p>
-              {renderGranularPermissions(newRole, setNewRole)}
+            {renderGranularPermissions(newRole, setNewRole)}
           </div>
         </div>
         <div className="pt-6 border-t space-y-3">

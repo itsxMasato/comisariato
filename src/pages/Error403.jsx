@@ -16,7 +16,7 @@ export default function Error403() {
         </p>
         <div className="mt-8">
           <Link 
-            to="/" 
+            to="/dashboard" 
             className="inline-flex items-center gap-2 bg-green-800 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95"
           >
             <span className="material-symbols-outlined">arrow_back</span>
