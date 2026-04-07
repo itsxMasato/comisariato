@@ -139,6 +139,10 @@ export default function Dashboard() {
     }
 
     const weeklyCompilation = monthlyYearlyCompilation;
+    const pagosUltimosTresMeses = monthlyYearlyCompilation.reduce(
+      (sum, month) => sum + (Number(month.cobros) || 0),
+      0,
+    );
 
     const pagosMensuales = cuotasMes.reduce(
       (sum, tx) => sum + (Number(tx.monto) || 0),
@@ -242,6 +246,7 @@ export default function Dashboard() {
       creditosAprobados,
       revisionesPendientes,
       pagosMensuales,
+      pagosUltimosTresMeses,
       metaCobranza,
       empleadosActivos:
         empleadosActivos > 0 ? empleadosActivos : EMPLEADOS_ACTIVOS_BASE,
@@ -280,20 +285,20 @@ export default function Dashboard() {
       border: "border-green-700",
     },
     {
-      icon: "event_note",
-      label: "Reservas del Mes",
-      value: monthlyData.empleadosConReserva.toLocaleString("es-HN"),
-      sub: "Solicitudes registradas durante el mes",
-      badge: "Mensual",
+      icon: "payments",
+      label: "Pagos 3 Meses",
+      value: formatMoney(monthlyData.pagosUltimosTresMeses / 1000),
+      sub: "Total cobrado en los últimos 3 meses",
+      badge: "3M",
       badgeClass: "bg-emerald-50 text-emerald-700",
       iconBg: "bg-emerald-100 text-emerald-700",
       border: "border-emerald-700",
     },
     {
-      icon: "groups",
-      label: "Empleados Activos",
-      value: monthlyData.empleadosActivos.toLocaleString("es-HN"),
-      sub: "Colaboradores activos en planilla",
+      icon: "paid",
+      label: "Créditos Pagados",
+      value: monthlyData.creditosPagados.toLocaleString("es-HN"),
+      sub: "Créditos cerrados este mes",
       badge: null,
       badgeClass: "",
       iconBg: "bg-emerald-100 text-emerald-700",
@@ -546,7 +551,7 @@ export default function Dashboard() {
             {monthlyData.weeklyCompilation.map((week) => (
               <div
                 key={week.label}
-                className="flex-1 bg-green-900/10 rounded-t-lg relative group"
+                className="flex-1 bg-green-900/10 rounded-t-lg relative group overflow-hidden"
                 style={{
                   height: `${Math.max(32, (week.solicitudes / maxSolicitudes) * 100)}%`,
                 }}
@@ -559,9 +564,13 @@ export default function Dashboard() {
                   style={{
                     height: `${
                       week.solicitudes > 0
-                        ? Math.max(15, (week.cobros / week.solicitudes) * 100)
+                        ? Math.min(
+                            100,
+                            Math.max(15, (week.cobros / week.solicitudes) * 100),
+                          )
                         : 15
                     }%`,
+                    maxHeight: "100%",
                   }}
                 />
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-green-900/80">
@@ -1097,7 +1106,7 @@ export default function Dashboard() {
             {monthlyData.weeklyCompilation.map((week) => (
               <div
                 key={week.label}
-                className="flex-1 bg-green-900/10 rounded-t-lg relative group"
+                className="flex-1 bg-green-900/10 rounded-t-lg relative group overflow-hidden"
                 style={{
                   height: `${Math.max(32, (week.solicitudes / maxSolicitudes) * 100)}%`,
                 }}
@@ -1110,9 +1119,13 @@ export default function Dashboard() {
                   style={{
                     height: `${
                       week.solicitudes > 0
-                        ? Math.max(15, (week.cobros / week.solicitudes) * 100)
+                        ? Math.min(
+                            100,
+                            Math.max(15, (week.cobros / week.solicitudes) * 100),
+                          )
                         : 15
                     }%`,
+                    maxHeight: "100%",
                   }}
                 />
                 <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-black text-green-900/80">
