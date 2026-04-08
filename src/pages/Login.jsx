@@ -79,9 +79,7 @@ export default function Login() {
           {/* Top: Brand */}
           <div className="relative z-20">
             <div className="flex items-center gap-3 mb-16">
-              <span className="material-symbols-outlined text-4xl">
-                agriculture
-              </span>
+              <img src="/favicon.ico?v=2" alt="Logo Comisariato" className="w-10 h-10 object-contain" />
               <h1
                 className="font-extrabold text-2xl tracking-tight"
                 style={{ fontFamily: "Manrope, sans-serif" }}
@@ -139,9 +137,7 @@ export default function Login() {
         <div className="bg-white p-8 md:p-16 flex flex-col justify-center">
           {/* Mobile brand */}
           <div className="mb-10 flex md:hidden items-center gap-2 text-green-800">
-            <span className="material-symbols-outlined text-3xl">
-              agriculture
-            </span>
+            <img src="/favicon.ico?v=2" alt="Logo Comisariato" className="w-8 h-8 object-contain" />
             <span
               className="font-extrabold text-xl tracking-tight"
               style={{ fontFamily: "Manrope, sans-serif" }}
