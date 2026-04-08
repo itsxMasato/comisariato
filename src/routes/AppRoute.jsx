@@ -3,7 +3,6 @@ import ProtectedRoute from "../auth/ProtectedRoute";
 import AdminLayout from "../layouts/AdminLayout";
 import { RoleRoute } from "../auth/AdminRoute";
 import { MODULES } from "../utils/roles";
-import { Toaster } from "sonner";
 
 import Login from "../pages/Login";
 import Dashboard from "../pages/Dashboard";
@@ -55,7 +54,6 @@ import DatosVariables from "../pages/DatosVariables";
 export default function AppRouter() {
   return (
     <>
-      <Toaster position="top-right" richColors />
       <Routes>
         {/* Pública */}
         <Route path="/login" element={<Login />} />
