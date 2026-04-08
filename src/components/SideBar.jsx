@@ -71,17 +71,15 @@ export default function SideBar({ isOpen, setIsOpen }) {
             </NavLink>
           )}
 
-          {hasPermission(role, MODULES.APP_MOVIL, "VIEW") && (
-            <NavLink to="/app-movil" className={linkClass}>
-              <span className="material-symbols-outlined">smartphone</span>
-              <span
-                className="text-sm font-medium"
-                style={{ fontFamily: "Manrope, sans-serif" }}
-              >
-                App Móvil
-              </span>
-            </NavLink>
-          )}
+          <NavLink to="/app-movil" className={linkClass}>
+            <span className="material-symbols-outlined">smartphone</span>
+            <span
+              className="text-sm font-medium"
+              style={{ fontFamily: "Manrope, sans-serif" }}
+            >
+              App Móvil
+            </span>
+          </NavLink>
 
           {hasPermission(role, MODULES.PRODUCTOS, "VIEW") && (
             <NavLink to="/productos" className={linkClass}>

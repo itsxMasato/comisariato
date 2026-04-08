@@ -21,11 +21,9 @@ const HomeRedirect = () => {
 
   if (hasPermission(role, MODULES.DASHBOARD, "VIEW")) {
     return <Navigate to="/dashboard" replace />;
-  } else if (hasPermission(role, MODULES.APP_MOVIL, "VIEW")) {
-    return <Navigate to="/app-movil" replace />;
   }
   
-  return <Navigate to="/403" replace />;
+  return <Navigate to="/app-movil" replace />;
 };
 
 // Productos
@@ -80,9 +78,7 @@ export default function AppRouter() {
           } />
 
           <Route path="/app-movil" element={
-            <RoleRoute moduleName={MODULES.APP_MOVIL}>
-              <AppMovil />
-            </RoleRoute>
+            <AppMovil />
           } />
           <Route path="/perfil" element={<Perfil />} />
 
