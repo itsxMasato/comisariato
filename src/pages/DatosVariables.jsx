@@ -11,6 +11,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db, auth } from "../firebase/firebase";
+import { logActividad } from "../utils/logger";
 
 export default function DatosVariables() {
   const [loading, setLoading] = useState(true);
@@ -96,6 +97,7 @@ export default function DatosVariables() {
         turno: formDataDepto.get("turno") || "Matutino",
         usuarioModifico: auth.currentUser?.email || "Admin"
       });
+      logActividad("Departamentos", "Creación de Departamento", { nombre: nombre.trim() });
       setIsDeptoModalOpen(false);
     } catch (err) {
       console.error(err);
@@ -103,10 +105,11 @@ export default function DatosVariables() {
     }
   };
 
-  const handleRemoveDepto = async (id) => {
+  const handleRemoveDepto = async (id, nombre) => {
     try {
       if (window.confirm("¿Seguro que deseas eliminar este departamento?")) {
         await deleteDoc(doc(db, "departamentos", id));
+        logActividad("Departamentos", "Eliminación de Departamento", { id, nombre });
       }
     } catch (e) {
       console.error(e);
@@ -128,6 +131,7 @@ export default function DatosVariables() {
         tipoModificacion: "Creación de Categoría",
         usuarioModifico: auth.currentUser?.email || "Admin"
       });
+      logActividad("Categorías", "Creación de Categoría", { nombre: nombre.trim() });
       setIsCatModalOpen(false);
     } catch (err) {
       console.error(err);
@@ -135,10 +139,11 @@ export default function DatosVariables() {
     }
   };
 
-  const handleRemoveCat = async (id) => {
+  const handleRemoveCat = async (id, nombre) => {
     try {
       if (window.confirm("¿Seguro que deseas eliminar esta categoría?")) {
         await deleteDoc(doc(db, "categorias", id));
+        logActividad("Categorías", "Eliminación de Categoría", { id, nombre });
       }
     } catch (e) {
       console.error(e);
@@ -151,6 +156,7 @@ export default function DatosVariables() {
     setSuccessMsg("");
     try {
       await setDoc(doc(db, "parametros", "general"), formData, { merge: true });
+      logActividad("Parámetros Generales", "Modificación de Políticas", formData);
       setSuccessMsg("¡Reglas financieras actualizadas correctamente!");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (error) {
@@ -365,7 +371,7 @@ export default function DatosVariables() {
                     {dep.nombre || dep.descripcion || dep.departamento || "N/A"}
                   </span>
                   <button
-                    onClick={() => handleRemoveDepto(dep.id)}
+                    onClick={() => handleRemoveDepto(dep.id, dep.nombre || dep.descripcion || dep.departamento || "N/A")}
                     className="hover:text-red-500 transition-colors flex items-center"
                   >
                     <span className="material-symbols-outlined text-base">
@@ -413,7 +419,7 @@ export default function DatosVariables() {
                     {cat.nombre || cat.categoria || cat.descripcion || "N/A"}
                   </span>
                   <button
-                    onClick={() => handleRemoveCat(cat.id)}
+                    onClick={() => handleRemoveCat(cat.id, cat.nombre || cat.categoria || cat.descripcion || "N/A")}
                     className="hover:text-red-500 transition-colors flex items-center"
                   >
                     <span className="material-symbols-outlined text-base">

@@ -7,6 +7,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, onSnapshot, collection } from "firebase/firestore";
 import { setDynamicRoles } from "../utils/roles";
+import { logActividad } from "../utils/logger";
 
 const AuthContext = createContext();
 
@@ -89,11 +90,15 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
-    return signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    logActividad("Autenticación", "Inicio de sesión", { email });
+    return cred;
   };
 
-  const logout = () => {
-    return signOut(auth);
+  const logout = async () => {
+    const userEmail = user?.email || "Usuario";
+    await signOut(auth);
+    logActividad("Autenticación", "Cierre de sesión", { email: userEmail });
   };
 
   return (

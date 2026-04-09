@@ -65,6 +65,7 @@ const obtenerFechaEvento = (data) => {
 // Función de obtención de datos optimizada
 const obtenerBitacoraCompleta = async () => {
     const nombresColecciones = [
+        "bitacoraactividades",
         "categorias", "comisariatos", "creditos", "cuotas", "departamentos",
         "empleados", "estadoProducto", "estadoSolicitud", "estadoUsuario",
         "historial_creditos", "historial_empleados", "historial_productos",
@@ -80,6 +81,7 @@ const obtenerBitacoraCompleta = async () => {
             const origen = nombresColecciones[index];
 
             const moduloNombre = {
+                bitacoraactividades: "Eventos Sistema",
                 empleados: "Empleados",
                 productos: "Productos",
                 usuarios: "Usuarios",
@@ -100,7 +102,7 @@ const obtenerBitacoraCompleta = async () => {
                 if (fecha) {
                     listaBitacora.push({
                         id: doc.id,
-                        coleccion: moduloNombre,
+                        coleccion: data.modulo || moduloNombre,
                         usuario: obtenerUsuarioEvento(data),
                         accion: obtenerAccionEvento(data),
                         fecha,
