@@ -1,8 +1,53 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
-import { collection, onSnapshot, doc } from "firebase/firestore";
-import { db } from "../firebase/firebase";
-import { useAuth } from "../auth/AuthProvider";
+import { collection, onSnapshot, doc, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth } from "../firebase/firebase";
+
+const normalizarEstado = (valor) =>
+  String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const esCreditoVisibleEnCuotas = (credito, filtroActual = "Activos") => {
+  const estado = normalizarEstado(credito?.estado || credito?.status);
+  
+  if (filtroActual === "Activos") {
+    return ["activo", "aprobado", "vigente", "desembolsado"].includes(estado);
+  } else if (filtroActual === "Pagados") {
+    return ["pagado", "liquidado"].includes(estado);
+  }
+  
+  return true; // "Todos"
+};
+
+const deepFindQuotas = (obj) => {
+  if (!obj || typeof obj !== 'object') return null;
+  const possibleKeys = ["cuotastotales", "cantidadcuotas", "numerocuotas", "plazomeses", "mesesplazo", "cuotas", "plazo"];
+  
+  for (const [key, value] of Object.entries(obj)) {
+    const lkey = key.toLowerCase();
+    if (possibleKeys.includes(lkey) && value !== undefined && value !== null && typeof value !== 'object') {
+      const extracted = parseInt(String(value).replace(/[^\d]/g, ""), 10);
+      if (!isNaN(extracted) && extracted > 0) return extracted;
+    }
+  }
+  
+  for (const value of Object.values(obj)) {
+    if (typeof value === 'object' && value !== null) {
+      const res = deepFindQuotas(value);
+      if (res) return res;
+    }
+  }
+  return null;
+};
+
+const getCuotasTotales = (c) => {
+  return deepFindQuotas(c) || 1;
+};
+
+const calcularCuota = (monto, cuotas) => (cuotas > 0 ? monto / cuotas : 0);
 
 function StatusBadge({ status }) {
   if (status === "applied")
@@ -21,9 +66,9 @@ function StatusBadge({ status }) {
 }
 
 export default function Cuotas() {
-  const { userName, role: authRole } = useAuth();
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("Todos los Departamentos");
+  const [statusFilter, setStatusFilter] = useState("Activos");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [departamentos, setDepartamentos] = useState([]);
@@ -36,6 +81,7 @@ export default function Cuotas() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState(null);
+  const [cobrandoId, setCobrandoId] = useState(null);
 
   useEffect(() => {
     const unsubQ = onSnapshot(collection(db, "cuotas"), (s) =>
@@ -74,7 +120,7 @@ export default function Cuotas() {
     cuotasData.forEach((c) => (totalRecuperado += Number(c.monto) || 0));
     let totalNomina = 0;
     credData
-      .filter((c) => ["Activo", "aprobado", "Aprobado"].includes(c.estado || c.status))
+      .filter((c) => esCreditoVisibleEnCuotas(c))
       .forEach((cred) => {
         const emp = empData.find(
           (e) => e.empleadoId === cred.empleadoId || e.id === cred.empleadoId,
@@ -114,23 +160,36 @@ export default function Cuotas() {
   ];
 
   const rows = credData
-    .filter((c) => ["Activo", "aprobado", "Aprobado"].includes(c.estado || c.status))
+    .filter((c) => esCreditoVisibleEnCuotas(c, statusFilter))
     .map((cred) => {
+      const targetId = String(cred.empleadoId || cred.usuarioId || "").trim();
+
       const emp =
         empData.find(
-          (e) => e.empleadoId === cred.empleadoId || e.id === cred.empleadoId || e.uid === cred.empleadoId || e.usuarioId === cred.empleadoId,
+          (e) =>
+            String(e.empleadoId) === targetId ||
+            String(e.id) === targetId ||
+            String(e.uid) === targetId ||
+            String(e.usuarioId) === targetId ||
+            String(e.dni) === targetId,
         ) || {};
       const usr =
         usuariosData.find(
-          (u) => u.uid === cred.empleadoId || u.id === cred.empleadoId || u.empleadoId === cred.empleadoId,
+          (u) =>
+            String(u.uid) === targetId ||
+            String(u.id) === targetId ||
+            String(u.empleadoId) === targetId ||
+            String(u.dni) === targetId,
         ) || {};
         
       const pagos = cuotasData.filter(
-        (q) => q.creditoId === cred.id || q.creditoId === cred.creditoId || (q.empleadoId === cred.empleadoId && !q.creditoId)
+        (q) => 
+          (q.creditoId && String(q.creditoId) === String(cred.id)) || 
+          (cred.creditoId && q.creditoId && String(q.creditoId) === String(cred.creditoId))
       );
       
-      const totalCredito = Number(cred.totalCredito || cred.total || 0);
-      const cuotasTotales = Number(cred.plazoMeses || 1);
+      const totalCredito = Number(cred.totalCredito || cred.montoTotal || cred.total || 0);
+      const cuotasTotales = getCuotasTotales(cred);
       const montoCuota = totalCredito / cuotasTotales;
       
       const fullName = [emp.nombres, emp.apellidos].filter(Boolean).join(" ").trim();
@@ -140,8 +199,8 @@ export default function Cuotas() {
       return {
         id: cred.id,
         name: nombreEmpleado,
-        dept: emp.departamento || usr.departamento || "N/A",
-        salary: `L ${Number(emp.salario || usr.salario || 0).toLocaleString()}`,
+        dept: emp.departamento || emp.area || usr.departamento || "N/A",
+        salary: `L ${Number(emp.salario || emp.salarioBase || emp.sueldoBase || emp.sueldo || usr.salario || usr.salarioBase || usr.sueldo || 0).toLocaleString("es-HN", { minimumFractionDigits: 2 })}`,
         credit: `L ${totalCredito.toLocaleString()}`,
         quota: `${pagos.length} / ${cuotasTotales}`,
         amount: `L ${montoCuota.toLocaleString("es-HN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -152,6 +211,10 @@ export default function Cuotas() {
         img: "https://ui-avatars.com/api/?name=" + (nombreEmpleado !== "Empleado" ? nombreEmpleado : "U"),
         orderId: cred.orderId || `RES-${cred.id.slice(0, 5).toUpperCase()}`,
         rawCred: cred,
+        empleadoId: targetId,
+        cuotasTotales,
+        cuotasPagadas: pagos.length,
+        totalCredito,
         rawPagos: pagos.map((p, i) => ({
           fecha: p.fechaRegistro?.toDate ? p.fechaRegistro.toDate().toLocaleDateString() : (p.fecha || "N/A"),
           monto: Number(p.monto || 0),
@@ -160,6 +223,39 @@ export default function Cuotas() {
         montoCuota: montoCuota
       };
     });
+
+  const handleCobrarCuota = async (row) => {
+    const creditoId = row?.id;
+    if (!creditoId) return;
+
+    const saldoPendiente = row.totalCredito - row.cuotasPagadas * row.montoCuota;
+    if (saldoPendiente <= 0) return;
+
+    setCobrandoId(creditoId);
+    try {
+      const montoACobrar = Math.min(row.montoCuota, saldoPendiente);
+
+      await addDoc(collection(db, "cuotas"), {
+        creditoId,
+        empleadoId: row.empleadoId || "",
+        monto: montoACobrar,
+        fechaRegistro: serverTimestamp(),
+        usuarioRegistro: auth.currentUser?.email || "Usuario",
+      });
+
+      if (saldoPendiente - montoACobrar <= 0.05) {
+        await updateDoc(doc(db, "creditos", creditoId), {
+          estado: "pagado",
+          status: "Pagado",
+          fechaCierre: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      console.error("Error al cobrar cuota:", error);
+    } finally {
+      setCobrandoId(null);
+    }
+  };
 
   const filtered = rows.filter((r) => {
     const matchSearch = r.name.toLowerCase().includes(search.toLowerCase());
@@ -425,6 +521,20 @@ export default function Cuotas() {
                   ))}
                 </select>
               </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] uppercase font-black text-slate-400 tracking-widest px-1">
+                  Estado
+                </label>
+                <select
+                  className="bg-white border-none rounded-xl text-sm font-medium py-2 pl-4 pr-10 outline-none focus:ring-2 focus:ring-green-700 cursor-pointer shadow-sm"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="Todos">Todos</option>
+                  <option value="Activos">Solo Activos</option>
+                  <option value="Pagados">Solo Pagados</option>
+                </select>
+              </div>
               <div className="flex items-center gap-2 bg-white rounded-xl shadow-sm px-3 py-1.5 focus-within:ring-2 focus-within:ring-green-700">
                 <span className="material-symbols-outlined text-slate-400 text-sm">calendar_month</span>
                 <input 
@@ -470,7 +580,6 @@ export default function Cuotas() {
                   <tr className="bg-slate-50 border-b border-slate-100">
                     {[
                       { label: "Empleado", align: "" },
-                      { label: "Salario Base", align: "text-center" },
                       { label: "Crédito Total", align: "text-right" },
                       { label: "Avance Cuotas", align: "text-center" },
                       { label: "Monto Deducción", align: "text-right" },
@@ -488,72 +597,94 @@ export default function Cuotas() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filtered.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="group hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl overflow-hidden ring-2 ring-slate-100 shrink-0">
-                            <img
-                              className="w-full h-full object-cover"
-                              src={row.img}
-                              alt=""
-                            />
-                          </div>
-                          <div>
-                            <p
-                              className="font-bold text-gray-900 leading-tight"
-                              style={{ fontFamily: "Manrope, sans-serif" }}
-                            >
-                              {row.name}
-                            </p>
-                            <p className="text-xs text-slate-400">{row.dept} • Ref: {row.orderId}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5 text-center text-sm font-medium text-slate-500">
-                        {row.salary}
-                      </td>
-                      <td
-                        className="px-6 py-5 text-right font-bold text-gray-900"
-                        style={{ fontFamily: "Manrope, sans-serif" }}
+                  {filtered.length > 0 ? (
+                    filtered.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="group hover:bg-slate-50 transition-colors"
                       >
-                        {row.credit}
-                      </td>
-                      <td className="px-6 py-5 text-center">
-                        <span className="text-sm font-semibold bg-slate-100 px-3 py-1 rounded-full">
-                          {row.quota}
-                        </span>
-                      </td>
-                      <td
-                        className="px-6 py-5 text-right font-bold text-green-800"
-                        style={{ fontFamily: "Manrope, sans-serif" }}
-                      >
-                        {row.amount}
-                      </td>
-                      <td className="px-6 py-5 text-sm text-slate-400">
-                        {row.date}
-                      </td>
-                      <td className="px-8 py-5">
-                        <StatusBadge status={row.status} />
-                      </td>
-                      <td className="px-4 py-5 text-right">
-                        <button
-                          onClick={() => {
-                            setSelectedRow(row);
-                            setIsModalOpen(true);
-                          }}
-                          className="p-2 hover:bg-slate-100 rounded-xl transition-all"
+                        <td className="px-8 py-5">
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-xl overflow-hidden ring-2 ring-slate-100 shrink-0">
+                              <img
+                                className="w-full h-full object-cover"
+                                src={row.img}
+                                alt=""
+                              />
+                            </div>
+                            <div>
+                              <p
+                                className="font-bold text-gray-900 leading-tight"
+                                style={{ fontFamily: "Manrope, sans-serif" }}
+                              >
+                                {row.name}
+                              </p>
+                              <p className="text-xs text-slate-400">{row.dept} • Ref: {row.orderId}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td
+                          className="px-6 py-5 text-right font-bold text-gray-900"
+                          style={{ fontFamily: "Manrope, sans-serif" }}
                         >
-                          <span className="material-symbols-outlined text-slate-400 group-hover:text-green-800">
-                            visibility
+                          {row.credit}
+                        </td>
+                        <td className="px-6 py-5 text-center">
+                          <span className="text-sm font-semibold bg-slate-100 px-3 py-1 rounded-full">
+                            {row.quota}
                           </span>
-                        </button>
+                        </td>
+                        <td
+                          className="px-6 py-5 text-right font-bold text-green-800"
+                          style={{ fontFamily: "Manrope, sans-serif" }}
+                        >
+                          {row.amount}
+                        </td>
+                        <td className="px-6 py-5 text-sm text-slate-400">
+                          {row.date}
+                        </td>
+                        <td className="px-8 py-5">
+                          <StatusBadge status={row.status} />
+                        </td>
+                        <td className="px-4 py-5 text-right">
+                          <div className="flex justify-end items-center gap-2">
+                            <button
+                              onClick={() => handleCobrarCuota(row)}
+                              disabled={row.status === "applied" || cobrandoId === row.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-700 text-white text-xs font-bold hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              title="Cobrar cuota"
+                            >
+                              <span className="material-symbols-outlined text-sm">payments</span>
+                              {cobrandoId === row.id ? "Cobrando..." : "Cobrar"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedRow(row);
+                                setIsModalOpen(true);
+                              }}
+                              className="p-2 hover:bg-slate-100 rounded-xl transition-all"
+                              title="Ver detalle"
+                            >
+                              <span className="material-symbols-outlined text-slate-400 group-hover:text-green-800">
+                                visibility
+                              </span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="px-8 py-14 text-center">
+                        <span className="material-symbols-outlined text-slate-300 text-4xl block mb-2">
+                          inbox
+                        </span>
+                        <p className="text-slate-500 font-semibold">
+                          No hay deducciones para mostrar con los filtros actuales.
+                        </p>
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

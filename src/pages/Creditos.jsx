@@ -4,6 +4,32 @@ import { collection, onSnapshot, doc, updateDoc, addDoc, serverTimestamp } from 
 import { db, auth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 
+// --- Funciones de Formato ---
+const deepFindQuotas = (obj) => {
+  if (!obj || typeof obj !== 'object') return null;
+  const possibleKeys = ["cuotastotales", "cantidadcuotas", "numerocuotas", "plazomeses", "mesesplazo", "cuotas", "plazo"];
+  
+  for (const [key, value] of Object.entries(obj)) {
+    const lkey = key.toLowerCase();
+    if (possibleKeys.includes(lkey) && value !== undefined && value !== null && typeof value !== 'object') {
+      const extracted = parseInt(String(value).replace(/[^\d]/g, ""), 10);
+      if (!isNaN(extracted) && extracted > 0) return extracted;
+    }
+  }
+  
+  for (const value of Object.values(obj)) {
+    if (typeof value === 'object' && value !== null) {
+      const res = deepFindQuotas(value);
+      if (res) return res;
+    }
+  }
+  return null;
+};
+
+const getCuotasTotales = (c) => {
+  return deepFindQuotas(c) || 1;
+};
+
 // --- Constantes de Respaldo ---
 const INITIAL_CREDITS = [
   {
@@ -113,7 +139,7 @@ export default function Creditos() {
         role: emp?.departamento || usr?.rol || "N/A",
         code: c.creditoId || c.orderId || `#CR-${String(c.id).substring(0, 4).toUpperCase()}`,
         montoTotal: c.totalCredito || c.total || 0,
-        cuotas: c.plazoMeses || c.mesesPlazo || c.cuotas || 1,
+        cuotas: getCuotasTotales(c),
         pagadas: pagos.length,
         plazo: "Mensual",
         fechaInicio: c.fechaInicio?.toDate

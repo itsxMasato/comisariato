@@ -1,0 +1,75 @@
+﻿commit 7eabd4b787eeb5a1bf055cbe5fc35d3cf19fb4de
+Author: Masato <104467712+itsxMasato@users.noreply.github.com>
+Date:   Mon Apr 6 23:16:52 2026 -0600
+
+    feat: terminamos le proyecto gente
+
+diff --git a/src/pages/NuevoCredito.jsx b/src/pages/NuevoCredito.jsx
+index 81c895a..ee5d778 100644
+--- a/src/pages/NuevoCredito.jsx
++++ b/src/pages/NuevoCredito.jsx
+@@ -21,7 +21,7 @@ export default function Error403() {
+         </p>
+         <div className="mt-8">
+           <Link
+-            to="/"
++            to="/dashboard"
+             className="inline-flex items-center gap-2 bg-green-800 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95"
+           >
+             <span className="material-symbols-outlined">arrow_back</span>
+
+commit 6b51f479017140ad4f57b3c619ef2ba177ec8527
+Author: Masato <104467712+itsxMasato@users.noreply.github.com>
+Date:   Sun Mar 22 20:12:14 2026 -0600
+
+    esas cosas nuevas mi bro
+
+diff --git a/src/pages/NuevoCredito.jsx b/src/pages/NuevoCredito.jsx
+index e69de29..81c895a 100644
+--- a/src/pages/NuevoCredito.jsx
++++ b/src/pages/NuevoCredito.jsx
+@@ -0,0 +1,34 @@
++import React from "react";
++import { Link } from "react-router-dom";
++
++export default function Error403() {
++  return (
++    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 text-gray-800 p-4 relative overflow-hidden">
++      <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
++        <span className="material-symbols-outlined text-[30rem]">lock</span>
++      </div>
++
++      <div className="z-10 text-center space-y-6">
++        <h1 className="text-9xl font-extrabold text-green-800 tracking-tighter">
++          403
++        </h1>
++        <h2 className="text-2xl md:text-4xl font-bold font-headline text-gray-900">
++          Acceso Denegado
++        </h2>
++        <p className="text-gray-500 max-w-md mx-auto text-lg">
++          No tienes los permisos necesarios para acceder a esta secci├│n del
++          portal de administraci├│n.
++        </p>
++        <div className="mt-8">
++          <Link
++            to="/"
++            className="inline-flex items-center gap-2 bg-green-800 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95"
++          >
++            <span className="material-symbols-outlined">arrow_back</span>
++            Volver al inicio
++          </Link>
++        </div>
++      </div>
++    </div>
++  );
++}
+
+commit 3236f676bd50f91c8aaf035c5ded979c5dc15194
+Author: Masato <104467712+itsxMasato@users.noreply.github.com>
+Date:   Sun Mar 22 19:21:01 2026 -0600
+
+    feat:las vainas faltantes
+
+diff --git a/src/pages/NuevoCredito.jsx b/src/pages/NuevoCredito.jsx
+new file mode 100644
+index 0000000..e69de29
