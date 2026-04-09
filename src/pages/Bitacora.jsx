@@ -3,6 +3,65 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 
+const normalizarTexto = (valor) => {
+    if (valor === null || valor === undefined) return "";
+    const texto = String(valor).trim();
+    return texto;
+};
+
+const obtenerUsuarioEvento = (data) => {
+    const candidatos = [
+        data.usuarioModifico,
+        data.usuario,
+        data.usuarioRegistro,
+        data.updatedBy,
+        data.createdBy,
+        data.email,
+        data.correo,
+        data.userEmail,
+        data.userName,
+        data.displayName,
+        data.nombreUsuario,
+        data.nombre,
+    ];
+
+    const encontrado = candidatos
+        .map(normalizarTexto)
+        .find((v) => v && v.toLowerCase() !== "sistema");
+
+    if (encontrado) return encontrado;
+    return "Usuario no identificado";
+};
+
+const obtenerAccionEvento = (data) => {
+    const accionExplicita = normalizarTexto(data.tipoModificacion || data.accion || data.action || data.evento);
+    if (accionExplicita) return accionExplicita;
+
+    const tieneFechaCreacion = !!(data.fechaRegistro || data.createdAt);
+    const tieneFechaActualizacion = !!(data.fechaModificacion || data.fechaActualizacion || data.updatedDate || data.updatedAt);
+
+    if (tieneFechaActualizacion) return "Actualización de Registro";
+    if (tieneFechaCreacion) return "Creación de Registro";
+    return "Acción no especificada";
+};
+
+const obtenerFechaEvento = (data) => {
+    const fechaRaw =
+        data.fechaModificacion ||
+        data.fechaActualizacion ||
+        data.updatedDate ||
+        data.updatedAt ||
+        data.fechaRegistro ||
+        data.createdAt;
+
+    if (!fechaRaw) return null;
+    if (typeof fechaRaw?.toDate === "function") return fechaRaw.toDate();
+
+    const fecha = new Date(fechaRaw);
+    if (Number.isNaN(fecha.getTime())) return null;
+    return fecha;
+};
+
 // Función de obtención de datos optimizada
 const obtenerBitacoraCompleta = async () => {
     const nombresColecciones = [
@@ -36,24 +95,15 @@ const obtenerBitacoraCompleta = async () => {
 
             snap.forEach((doc) => {
                 const data = doc.data();
-                // Algunos módulos usan fechaModificacion, otros fechaActualizacion o fechaRegistro o updatedDate/createdAt
-                let fechaRaw = data.fechaModificacion || data.fechaActualizacion || data.fechaRegistro || data.updatedDate || data.createdAt;
-                
-                // Extraer el objeto Date subyacente de serverTimestamp si es un timestamp the firestore
-                const fecha = fechaRaw;
+                const fecha = obtenerFechaEvento(data);
 
                 if (fecha) {
-                    const esEdicion = !!(data.fechaModificacion || data.fechaActualizacion || data.updatedDate);
-                    let accionGenerada = data.tipoModificacion || "N/A";
-
                     listaBitacora.push({
                         id: doc.id,
                         coleccion: moduloNombre,
-                        usuario: data.usuarioModifico || data.email || data.usuario || "Sistema",
-                        accion: accionGenerada,
-                        fecha: fecha?.toDate
-                            ? fecha.toDate()
-                            : new Date(fecha)
+                        usuario: obtenerUsuarioEvento(data),
+                        accion: obtenerAccionEvento(data),
+                        fecha,
                     });
                 }
             });
