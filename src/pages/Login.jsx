@@ -84,7 +84,7 @@ export default function Login() {
                 className="font-extrabold text-2xl tracking-tight"
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
-                Comisariato Pro DEV Miguel
+                Comisario Pro DEV Miguel
               </h1>
             </div>
             <div className="space-y-5">
@@ -142,7 +142,7 @@ export default function Login() {
               className="font-extrabold text-xl tracking-tight"
               style={{ fontFamily: "Manrope, sans-serif" }}
             >
-              Comisariato
+              Comisario Pro DEV Miguel
             </span>
           </div>
 
