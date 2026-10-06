@@ -142,7 +142,7 @@ export default function Login() {
                 className="font-extrabold text-xl tracking-tight"
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
-                Comisario Pro DEV Miguel
+                Comisario Pro DEV Astrid
               </span>
             </div>
 
