@@ -25,7 +25,7 @@ export default function AppMovil() {
             <div className="flex flex-col sm:flex-row items-center gap-8 bg-surface-container-low p-8 rounded-[2rem] border border-outline-variant/10 shadow-sm">
               <div className="flex-grow w-full sm:w-auto">
                 <a
-                  href="/comisariato.apk"
+                  href="https://github.com/itsxMasato/comisariato/raw/main/public/comisariato.apk"
                   download="ComisariatoPro.apk"
                   className="w-full flex items-center justify-center gap-3 px-8 py-5 primary-gradient text-white rounded-xl font-bold text-lg hover:shadow-lg transition-all active:scale-95"
                 >
