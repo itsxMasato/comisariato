@@ -116,6 +116,8 @@ const planDeFila = async ({ almacen, esquema, fila, importacionId, creditos, por
 const CONTEO = { revertido: "revertidos", revertido_parcial: "parciales", no_revertido: "noRevertidos" };
 
 export const deshacerImportacion = async ({ almacen, importacionId, usuario, role, alAvanzar = () => {}, esperarMs = esperar }) => {
+  // Avance para la interfaz: preparando → revisando (fila por fila) → guardando (por bloque)
+  alAvanzar({ etapa: "preparando", procesadas: 0, total: 0 });
   const inicial = await almacen.leer(`importaciones/${importacionId}`);
   const esquema = ESQUEMAS[inicial.modulo];
   const { ahora } = await tomarCandado(almacen, esquema.id, { importacionId, uid: usuario.uid, correo: usuario.correo });
@@ -142,8 +144,11 @@ export const deshacerImportacion = async ({ almacen, importacionId, usuario, rol
     });
 
     bloques.sort((x, y) => x.id.localeCompare(y.id));
+    const esPendiente = (f) => !f.reversion && ["insertado", "actualizado"].includes(f.estado);
+    const total = bloques.reduce((n, b) => n + b.filas.filter(esPendiente).length, 0);
+    let procesadas = 0;
     for (const bloque of bloques) {
-      const pendientes = bloque.filas.filter((f) => !f.reversion && ["insertado", "actualizado"].includes(f.estado));
+      const pendientes = bloque.filas.filter(esPendiente);
       if (!pendientes.length) continue;
 
       const filas = [...bloque.filas];
@@ -152,6 +157,8 @@ export const deshacerImportacion = async ({ almacen, importacionId, usuario, rol
         const plan = await planDeFila({ almacen, esquema, fila, importacionId, creditos, porcentajeInteres, auditoria });
         filas[filas.indexOf(fila)] = { ...fila, reversion: plan.reversion };
         operaciones.push(...plan.operaciones);
+        procesadas += 1;
+        alAvanzar({ etapa: "revisando", procesadas, total });
       }
       try {
         await conReintentos(async () => {
@@ -171,7 +178,7 @@ export const deshacerImportacion = async ({ almacen, importacionId, usuario, rol
       });
       await actualizarImportacion(almacen, importacionId, { reversion: { ...reversion, conteos } }).catch(() => {});
       await renovarCandado(almacen, esquema.id).catch(() => {});
-      alAvanzar({ conteos: { ...conteos } });
+      alAvanzar({ etapa: "guardando", procesadas, total, conteos: { ...conteos } });
     }
 
     const estado = conteos.parciales + conteos.noRevertidos === 0 ? "revertida" : "revertida_parcial";

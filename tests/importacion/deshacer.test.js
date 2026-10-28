@@ -226,6 +226,24 @@ describe("deshacerImportacion", () => {
     expect(await a.leer("productos/p2")).toBeNull();
   });
 
+  test("informa el avance fila por fila con el total, para mostrar una barra de progreso", async () => {
+    const a = preparar(
+      {
+        "productos/p1": { productoId: "A-1", ...marca },
+        "productos/p2": { productoId: "B-2", ...marca },
+        "productos/p3": { productoId: "C-3", ...marca },
+      },
+      [filaReg(2, "insertado", "p1"), filaReg(3, "rechazado", null), filaReg(4, "insertado", "p2"), filaReg(5, "insertado", "p3")],
+      { conteos: { insertados: 3, actualizados: 0 } },
+    );
+    const avances = [];
+    await deshacer(a, { alAvanzar: (p) => avances.push(`${p.etapa}:${p.procesadas}/${p.total}`) });
+    expect(avances[0]).toBe("preparando:0/0");
+    expect(avances).toContain("revisando:1/3");
+    expect(avances).toContain("revisando:3/3");
+    expect(avances[avances.length - 1]).toBe("guardando:3/3");
+  });
+
   test("sin permiso o fuera de plazo no hace nada", async () => {
     const a = preparar({ "productos/p1": { productoId: "A-1", ...marca } }, [filaReg(2, "insertado", "p1")], {
       fechaFin: new Date(ahora - 13 * H),

@@ -1,15 +1,62 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { almacenFirestore } from "../../importacion/almacenFirestore";
 import { ErrorDeshacer, deshacerImportacion } from "../../importacion/deshacer";
 import { ESQUEMAS } from "../../importacion/esquemas";
 import { ErrorCandado } from "../../importacion/historial";
 import { MOTIVOS_NO_DESHACER, formatearDuracion } from "./estados";
 
+const ETAPAS = {
+  preparando: "Preparando la reversión...",
+  revisando: "Revisando cada registro...",
+  guardando: "Guardando los cambios...",
+};
+
+// Panel de avance: deja claro que el sistema está trabajando y cuánto falta
+const PanelAvance = ({ avance }) => {
+  const pct = avance?.total ? Math.round((avance.procesadas / avance.total) * 100) : 0;
+  return (
+    <div className="space-y-4 py-2" role="status" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full border-4 border-red-100 border-t-red-600 animate-spin shrink-0" />
+        <div>
+          <p className="text-sm font-black text-slate-900">{ETAPAS[avance?.etapa] || ETAPAS.preparando}</p>
+          <p className="text-xs text-slate-500">
+            {avance?.total ? `${avance.procesadas} de ${avance.total} registros` : "Verificando permisos y datos relacionados"}
+          </p>
+        </div>
+      </div>
+      <div className="w-full bg-red-50 h-2.5 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full bg-red-600 transition-all duration-300 ${avance?.total ? "" : "w-1/3 animate-pulse"}`}
+          style={avance?.total ? { width: `${Math.max(pct, 3)}%` } : undefined}
+        />
+      </div>
+      <p className="text-[11px] text-slate-500 flex items-center gap-1">
+        <span className="material-symbols-outlined text-sm text-amber-600">warning</span>
+        No cierres esta ventana hasta que termine. Si se corta, la reversión se puede reanudar desde el historial.
+      </p>
+    </div>
+  );
+};
+
 export default function ModalDeshacer({ importacion, restanteMs, reanudar, usuario, role, onCerrar, onTerminado }) {
   const [estado, setEstado] = useState("confirmar"); // confirmar | ejecutando | listo
   const [resultado, setResultado] = useState(null);
   const [noRevertidas, setNoRevertidas] = useState([]);
   const [error, setError] = useState(null);
+  const [avance, setAvance] = useState(null);
+
+  // Mientras se deshace, el navegador avisa antes de cerrar la pestaña
+  useEffect(() => {
+    if (estado !== "ejecutando") return undefined;
+    const avisar = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [estado]);
+
   if (!importacion) return null;
 
   const esquema = ESQUEMAS[importacion.modulo];
@@ -18,8 +65,9 @@ export default function ModalDeshacer({ importacion, restanteMs, reanudar, usuar
   const confirmar = async () => {
     setEstado("ejecutando");
     setError(null);
+    setAvance(null);
     try {
-      const r = await deshacerImportacion({ almacen: almacenFirestore, importacionId: importacion.id, usuario, role });
+      const r = await deshacerImportacion({ almacen: almacenFirestore, importacionId: importacion.id, usuario, role, alAvanzar: setAvance });
       const bloques = await almacenFirestore.leerTodos(`importaciones/${importacion.id}/filas`);
       setNoRevertidas(
         bloques.flatMap((b) => b.filas).filter((f) => f.reversion && f.reversion.estado !== "revertido"),
@@ -42,7 +90,9 @@ export default function ModalDeshacer({ importacion, restanteMs, reanudar, usuar
           {reanudar ? "Reanudar reversión" : "Deshacer importación"} {importacion.folio}
         </h3>
 
-        {estado !== "listo" && (
+        {estado === "ejecutando" && <PanelAvance avance={avance} />}
+
+        {estado === "confirmar" && (
           <>
             <ul className="text-sm text-slate-700 space-y-1.5">
               {esquema.soloCreacion ? (
