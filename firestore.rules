@@ -1,0 +1,97 @@
+rules_version = '2';
+
+// Reglas de Comisariato Pro. Ver docs/superpowers/firestore-reglas.md antes de publicarlas.
+// Los permisos finos por módulo (hasPermission en src/utils/roles.js) siguen en la app:
+// los roles tienen ID aleatorio y las reglas no pueden buscarlos por nombre.
+// Estas reglas cierran lo grave: sin sesión, sin perfil o deshabilitado no se lee ni se escribe nada.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function rutaPerfil() {
+      return /databases/$(database)/documents/usuarios/$(request.auth.uid);
+    }
+
+    function perfil() {
+      return get(rutaPerfil()).data;
+    }
+
+    // Sesión iniciada, con documento en `usuarios` y estado activo
+    function activo() {
+      return request.auth != null
+        && exists(rutaPerfil())
+        && perfil().estado in ['Activo', 'active'];
+    }
+
+    function superAdmin() {
+      return activo() && perfil().rol in ['SUPER ADMIN', 'Administrador'];
+    }
+
+    // Personal administrativo: cualquier rol activo que no sea el de la app móvil
+    function personal() {
+      return activo() && !(perfil().rol in ['EMPLEADO', 'Usuario']);
+    }
+
+    match /roles/{id} {
+      allow read: if activo();
+      allow write: if superAdmin();
+    }
+
+    match /usuarios/{uid} {
+      allow read: if activo();
+      // Solo SUPER ADMIN puede dar o quitar el rol SUPER ADMIN
+      allow create: if personal()
+        && (request.resource.data.rol != 'SUPER ADMIN' || superAdmin());
+      allow update: if (personal()
+          && (request.resource.data.rol != 'SUPER ADMIN' || superAdmin())
+          && (resource.data.rol != 'SUPER ADMIN' || superAdmin()))
+        || (activo() && request.auth.uid == uid
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rol', 'estado']));
+      allow delete: if superAdmin();
+    }
+
+    match /parametros/{id} {
+      allow read: if activo();
+      allow write: if superAdmin();
+    }
+
+    // Registros de auditoría: se agregan, nunca se modifican ni se borran
+    match /bitacoraactividades/{id} {
+      allow read, create: if activo();
+    }
+
+    match /{historial}/{id} {
+      allow read, create: if activo() && historial.matches('historial_.*');
+    }
+
+    // Importaciones desde Excel
+    match /importaciones/{id} {
+      allow read: if activo();
+      allow create, update: if personal();
+
+      match /filas/{bloque} {
+        allow read: if activo();
+        allow create, update: if personal();
+      }
+    }
+
+    match /contadores/{id} {
+      allow read: if activo();
+      allow create, update: if personal();
+    }
+
+    match /importaciones_bloqueo/{modulo} {
+      allow read: if activo();
+      allow create, update, delete: if personal();
+    }
+
+    // Datos del negocio. La app móvil (rol EMPLEADO) crea reservas en `creditos`.
+    match /{coleccion}/{id} {
+      allow read: if activo()
+        && coleccion in ['productos', 'empleados', 'categorias', 'departamentos', 'creditos', 'cuotas'];
+      allow create, update: if activo()
+        && coleccion in ['productos', 'empleados', 'categorias', 'departamentos', 'creditos', 'cuotas'];
+      allow delete: if personal()
+        && coleccion in ['productos', 'empleados', 'categorias', 'departamentos', 'creditos', 'cuotas'];
+    }
+  }
+}
