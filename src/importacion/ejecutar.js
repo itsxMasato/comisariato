@@ -2,6 +2,7 @@
 // Productos y Empleados: tramos atómicos de 200 filas. Usuarios: de a una cuenta.
 import { reservarCodigosEmpleado, siguienteFolio } from "../utils/contadores";
 import { cargarContexto } from "./contexto";
+import { generarContrasena } from "./contrasena";
 import { esperar } from "./esperar";
 import {
   actualizarImportacion,
@@ -219,7 +220,110 @@ export const ejecutarImportacion = async ({
   }
 };
 
-// Se completa en la Tarea 13
-const crearCuentasDeUno = async () => {
-  throw new Error("Importación de usuarios no implementada");
+// Errores de Auth que obligan a detenerse: lo que falta queda para reintentar más tarde.
+// Un error de red tampoco se reintenta: la cuenta pudo crearse sin que llegara la respuesta.
+const ERRORES_DE_CORTE = {
+  "auth/too-many-requests": "Límite de Firebase alcanzado, reintentar más tarde",
+  "auth/quota-exceeded": "Límite de Firebase alcanzado, reintentar más tarde",
+  "auth/network-request-failed": "Sin conexión con Firebase, reintentar más tarde",
+};
+
+// Usuarios: de a una cuenta (Auth → documento → vínculo con empleado → correo de contraseña)
+const crearCuentasDeUno = async ({ almacen, cuentas, esquema, filas, id, usuario, conteos, alAvanzar, esperarMs }) => {
+  const [bloque] = bloquesDeFilas(filas); // el tope de 50 filas cabe en un bloque
+  const registros = bloque.filas.map((f) => registroDeFila(f, f.estado === "nuevo" ? "no_procesado" : ESTADO_FINAL[f.estado]));
+  let avisos = 0;
+  let error = null;
+
+  const guardarAvance = async () => {
+    Object.keys(CONTEO_POR_ESTADO).forEach((estado) => {
+      conteos[CONTEO_POR_ESTADO[estado]] = registros.filter((r) => r.estado === estado).length;
+    });
+    const lote = almacen.lote();
+    lote.set(`importaciones/${id}/filas/${bloque.id}`, { desde: bloque.desde, hasta: bloque.hasta, filas: registros });
+    await conReintentos(() => lote.commit(), esperarMs).catch((e) => console.error("No se pudo guardar el avance:", e));
+    await actualizarImportacion(almacen, id, { conteos }).catch(() => {});
+    await renovarCandado(almacen, esquema.id).catch(() => {});
+  };
+
+  await guardarAvance();
+  for (let i = 0; i < bloque.filas.length; i += 1) {
+    const fila = bloque.filas[i];
+    if (fila.estado !== "nuevo") continue;
+    const doc = fila.documento;
+    const actualizarRegistro = (estado, extra = {}) => {
+      registros[i] = { ...registros[i], estado, ...extra };
+      if (extra.aviso) avisos += 1;
+    };
+
+    let cuenta;
+    try {
+      cuenta = await cuentas.crear(doc.correo, generarContrasena());
+    } catch (e) {
+      if (e.code === "auth/email-already-in-use") {
+        actualizarRegistro("omitido", { aviso: null, errores: [{ campo: "correo", mensaje: "Ya existe una cuenta con este correo en Authentication", valorRecibido: doc.correo }] });
+      } else if (ERRORES_DE_CORTE[e.code]) {
+        error = ERRORES_DE_CORTE[e.code];
+        for (let j = i; j < registros.length; j += 1) {
+          if (registros[j].estado === "no_procesado") registros[j] = { ...registros[j], aviso: error };
+        }
+        await cuentas.cerrarSecundaria().catch(() => {});
+        break;
+      } else {
+        actualizarRegistro("rechazado", { errores: [{ campo: "correo", mensaje: `No se pudo crear la cuenta: ${e.code || e.message}`, valorRecibido: doc.correo }] });
+      }
+      await cuentas.cerrarSecundaria().catch(() => {});
+      await guardarAvance();
+      continue;
+    }
+
+    try {
+      await conReintentos(async () => {
+        const lote = almacen.lote();
+        lote.set(`usuarios/${cuenta.uid}`, {
+          usuarioId: cuenta.uid,
+          uid: cuenta.uid,
+          empleadoId: doc.empleadoId,
+          nombre: doc.nombre,
+          correo: doc.correo,
+          rol: doc.rol,
+          estado: "Activo",
+          tipoModificacion: "Importación Excel",
+          usuarioModifico: usuario.correo,
+          fechaRegistro: almacen.marcaServidor(),
+          fechaActualizacion: almacen.marcaServidor(),
+          importacionId: id,
+        });
+        await lote.commit();
+      }, esperarMs);
+    } catch {
+      // Una cuenta sin documento no debe quedar: se borra la recién creada
+      const borrada = await cuenta.borrar().then(() => true, () => false);
+      actualizarRegistro("rechazado", {
+        documentoId: cuenta.uid,
+        errores: [{ campo: "correo", mensaje: "No se pudo guardar el usuario; la cuenta se eliminó", valorRecibido: doc.correo }],
+        ...(!borrada && { aviso: `Cuenta huérfana: eliminar ${doc.correo} en la consola de Authentication` }),
+      });
+      await cuentas.cerrarSecundaria().catch(() => {});
+      await guardarAvance();
+      continue;
+    }
+
+    let aviso = null;
+    if (doc.empleadoId) {
+      await conReintentos(() => almacen.actualizar(`empleados/${doc.empleadoId}`, { uid: cuenta.uid, usuarioId: cuenta.uid }), esperarMs).catch(() => {
+        aviso = "Usuario creado, pero no se pudo vincular al empleado";
+      });
+    }
+    await cuentas.enviarRestablecimiento(doc.correo).catch(() => {
+      aviso = aviso ? `${aviso}. Correo no enviado: usar «Restablecer contraseña»` : "Correo no enviado: usar «Restablecer contraseña»";
+    });
+    await cuentas.cerrarSecundaria().catch(() => {});
+    actualizarRegistro("insertado", { documentoId: cuenta.uid, aviso });
+    await guardarAvance();
+    alAvanzar({ procesadas: i + 1, total: bloque.filas.length, conteos: { ...conteos } });
+  }
+
+  await guardarAvance();
+  return { error, avisos };
 };

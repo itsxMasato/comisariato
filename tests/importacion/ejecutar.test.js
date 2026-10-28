@@ -191,3 +191,85 @@ describe("ejecutar Empleados", () => {
     expect((await a.leer("contadores/empleados")).ultimo).toBe(10);
   });
 });
+
+describe("ejecutar Usuarios", () => {
+  const ENC_U = ["Correo", "Nombre", "Rol", "Código de empleado"];
+  const baseUsuarios = () => ({
+    "roles/r1": { nombre: "EDITOR CREDITOS", estado: "Activo" },
+    "empleados/e1": { codigoEmpleado: "EMP-0001" },
+  });
+  const filaU = (i, codigo = "") => ({
+    filaExcel: i + 2,
+    valores: { Correo: `u${i}@x.hn`, Nombre: `Usuario ${i}`, Rol: "EDITOR CREDITOS", "Código de empleado": codigo },
+  });
+
+  test("3 filas: 3 cuentas, 3 documentos, 3 correos de contraseña y la sesión secundaria cerrada", async () => {
+    const a = crearAlmacenFalso(baseUsuarios());
+    const cuentas = crearCuentasFalsas();
+    const r = await ejecutar(a, ESQUEMAS.usuarios, ENC_U, [filaU(0, "EMP-0001"), filaU(1), filaU(2)], { cuentas });
+    expect(r).toMatchObject({ estado: "completada", conteos: { insertados: 3 } });
+    expect(cuentas.creadas).toHaveLength(3);
+    expect(cuentas.restablecimientos).toEqual(["u0@x.hn", "u1@x.hn", "u2@x.hn"]);
+    expect(cuentas.cierres).toBe(3);
+    const uid0 = cuentas.creadas[0].uid;
+    expect(await a.leer(`usuarios/${uid0}`)).toMatchObject({
+      uid: uid0,
+      usuarioId: uid0,
+      correo: "u0@x.hn",
+      rol: "EDITOR CREDITOS",
+      estado: "Activo",
+      empleadoId: "e1",
+      importacionId: r.id,
+      tipoModificacion: "Importación Excel",
+    });
+    expect(await a.leer("empleados/e1")).toMatchObject({ uid: uid0, usuarioId: uid0 });
+  });
+
+  test("si no se puede guardar el documento, se borra la cuenta recién creada", async () => {
+    const a = crearAlmacenFalso(baseUsuarios());
+    a.fallarCommitCuando((rutas) => rutas.some((ruta) => ruta.startsWith("usuarios/")), 4);
+    const cuentas = crearCuentasFalsas();
+    const r = await ejecutar(a, ESQUEMAS.usuarios, ENC_U, [filaU(0)], { cuentas });
+    expect(cuentas.borradas).toEqual([cuentas.creadas[0].uid]);
+    const [bloque] = await a.leerTodos(`importaciones/${r.id}/filas`);
+    expect(bloque.filas[0].estado).toBe("rechazado");
+    expect(r.conteos.rechazados).toBe(1);
+  });
+
+  test("si tampoco se puede borrar la cuenta, queda el aviso de cuenta huérfana", async () => {
+    const a = crearAlmacenFalso(baseUsuarios());
+    a.fallarCommitCuando((rutas) => rutas.some((ruta) => ruta.startsWith("usuarios/")), 4);
+    const r = await ejecutar(a, ESQUEMAS.usuarios, ENC_U, [filaU(0)], { cuentas: crearCuentasFalsas({ fallarBorrado: true }) });
+    const [bloque] = await a.leerTodos(`importaciones/${r.id}/filas`);
+    expect(bloque.filas[0].aviso).toBe("Cuenta huérfana: eliminar u0@x.hn en la consola de Authentication");
+    expect(r.estado).toBe("completada_con_advertencias");
+  });
+
+  test("correo que ya existe en Authentication queda omitido", async () => {
+    const a = crearAlmacenFalso(baseUsuarios());
+    const r = await ejecutar(a, ESQUEMAS.usuarios, ENC_U, [filaU(0)], { cuentas: crearCuentasFalsas({ existentes: ["u0@x.hn"] }) });
+    expect(r.conteos).toMatchObject({ insertados: 0, omitidos: 1 });
+  });
+
+  test("límite de Firebase en la fila 2 de 4: interrumpida con 1 creada y 3 no procesadas", async () => {
+    const a = crearAlmacenFalso(baseUsuarios());
+    const cuentas = crearCuentasFalsas({ fallarCon: { "u1@x.hn": "auth/too-many-requests" } });
+    const r = await ejecutar(a, ESQUEMAS.usuarios, ENC_U, [filaU(0), filaU(1), filaU(2), filaU(3)], { cuentas });
+    expect(r.estado).toBe("interrumpida");
+    expect(r.conteos).toMatchObject({ insertados: 1, noProcesados: 3 });
+    expect(cuentas.creadas).toHaveLength(1);
+    const [bloque] = await a.leerTodos(`importaciones/${r.id}/filas`);
+    expect(bloque.filas.slice(1).every((f) => f.estado === "no_procesado")).toBe(true);
+    expect(bloque.filas[1].aviso).toMatch(/reintentar más tarde/);
+  });
+
+  test("si falla el correo para establecer la contraseña, el usuario queda creado con aviso", async () => {
+    const a = crearAlmacenFalso(baseUsuarios());
+    const r = await ejecutar(a, ESQUEMAS.usuarios, ENC_U, [filaU(0)], {
+      cuentas: crearCuentasFalsas({ fallarRestablecimiento: ["u0@x.hn"] }),
+    });
+    expect(r).toMatchObject({ estado: "completada_con_advertencias", conteos: { insertados: 1 } });
+    const [bloque] = await a.leerTodos(`importaciones/${r.id}/filas`);
+    expect(bloque.filas[0].aviso).toBe("Correo no enviado: usar «Restablecer contraseña»");
+  });
+});
