@@ -15,6 +15,8 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useAuth } from "../auth/AuthProvider";
 import { hasPermission, MODULES, ACTIONS } from "../utils/roles";
 import emailjs from "@emailjs/browser";
+import { reservarCodigosEmpleado } from "../utils/contadores";
+import { almacenFirestore } from "../importacion/almacenFirestore";
 
 export default function Empleados() {
     const { role } = useAuth();
@@ -226,6 +228,8 @@ export default function Empleados() {
                 );
             } else {
                 payload.fechaRegistro = Timestamp.now();
+                // El código sugerido se confirma con el contador para que no se repita
+                payload.codigoEmpleado = (await reservarCodigosEmpleado(almacenFirestore, 1))[0];
                 payload.empleadoId = "";
                 const docRef = doc(collection(db, "empleados"));
                 payload.empleadoId = docRef.id;
@@ -923,6 +927,9 @@ export default function Empleados() {
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-black uppercase text-slate-400 ml-1">
                                         Código Empleado
+                                        {!editingEmployee && (
+                                            <span className="normal-case font-semibold text-slate-400"> (se confirma al guardar)</span>
+                                        )}
                                     </label>
                                     <input
                                         required
