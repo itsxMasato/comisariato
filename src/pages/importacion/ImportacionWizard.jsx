@@ -1,3 +1,19 @@
+/**
+ * ==============================================================================
+ * DISEÑO UX / UI
+ * ==============================================================================
+ * (Rol: UX/UI)
+ * @description
+ * Asistente interactivo en 4 pasos, diseñado a partir de un mockup inicial.
+ * 
+ * DECISIONES DE EXPERIENCIA DE USUARIO (UX):
+ * - Flujo guiado tipo Stepper para minimizar la sobrecarga cognitiva del usuario.
+ * - Prevención de errores irreversibles: separación estricta entre vista previa,
+ *   confirmación visual (Paso 3) y la ejecución destructiva en base de datos.
+ * - Jerarquía visual y accesibilidad en el reporte de estados y descarga de rechazos.
+ * ==============================================================================
+ */
+
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { sileo } from "sileo";
