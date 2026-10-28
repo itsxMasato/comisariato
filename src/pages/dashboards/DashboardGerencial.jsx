@@ -30,6 +30,9 @@ const MESES_TENDENCIA = 6;
 // Umbral por defecto cuando el producto no define stockMinimo (igual que Productos.jsx)
 const STOCK_MINIMO_DEFAULT = 20;
 
+// Obtiene el número total de cuotas del crédito a partir de los campos
+// disponibles en el registro. Valida que el valor sea numérico y positivo;
+// si no encuentra uno válido, utiliza 1 como valor predeterminado.
 const getCuotasTotales = (c) => {
   const candidato = [c.cuotas, c.numeroCuotas, c.cantidadCuotas, c.totalCuotas, c.plazo, c.plazoMeses]
     .map(Number)
@@ -37,6 +40,9 @@ const getCuotasTotales = (c) => {
   return candidato || 1;
 };
 
+// Unifica los distintos valores de estado almacenados en los créditos
+// para clasificarlos como Pendiente, Rechazado, Pagado o Activo,
+// facilitando el cálculo uniforme de los indicadores.
 const normalizeCreditStatus = (c) => {
   const raw = normalizeText(c.estado || c.status || "activo");
   if (raw === "pendiente") return "Pendiente";
@@ -45,6 +51,9 @@ const normalizeCreditStatus = (c) => {
   return "Activo";
 };
 
+// Calcula los meses completos transcurridos entre dos fechas.
+// Considera el día del mes para no contabilizar como completo
+// un mes que todavía no ha terminado.
 const monthsBetween = (start, end) => {
   let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
   if (end.getDate() < start.getDate()) months -= 1;
@@ -97,6 +106,9 @@ const Pill = ({ className, children }) => (
   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${className}`}>{children}</span>
 );
 
+// Establece suscripciones en tiempo real a las colecciones de empleados,
+// usuarios, créditos, cuotas y productos. Actualiza los estados del componente
+// cuando Firestore notifica cambios y cancela las suscripciones al desmontarlo.
 export default function DashboardGerencial() {
   const [modalKey, setModalKey] = useState(null);
   const [fechaFiltro, setFechaFiltro] = useState(() => todayISO());
@@ -129,9 +141,10 @@ export default function DashboardGerencial() {
   const periodo = useMemo(() => monthRange(fechaFiltro), [fechaFiltro]);
   const periodoLabel = useMemo(() => formatMonthLabel(fechaFiltro), [fechaFiltro]);
 
-  // ──────────────────────────────────────────────────────────
-  // CRÉDITOS NORMALIZADOS (con pagos, saldo y cuotas vencidas)
-  // ──────────────────────────────────────────────────────────
+  // Consolida la información de créditos, cuotas, empleados y usuarios.
+  // Relaciona los pagos con cada crédito, calcula el monto pagado, el saldo
+  // pendiente y las cuotas vencidas, y normaliza los datos para utilizarlos
+  // en los indicadores de solicitudes y cartera.
   const creditos = useMemo(() => {
     const findPerson = buildPersonFinder(empleados, usuarios);
     const pagosPorCredito = new Map();
@@ -179,6 +192,9 @@ export default function DashboardGerencial() {
   }, [creditosRaw, cuotasRaw, empleados, usuarios, periodo]);
 
   // KPI 1: Solicitudes del período
+  // Filtra los créditos según su fecha de solicitud y el período seleccionado.
+  // Clasifica las solicitudes como pendientes, aprobadas o rechazadas y calcula
+  // el porcentaje de aprobación entre las solicitudes resueltas.
   const solicitudes = useMemo(() => {
     const delPeriodo = creditos
       .filter((c) => inRange(c.fechaSolicitud, periodo))
@@ -205,6 +221,9 @@ export default function DashboardGerencial() {
   }, [creditos, periodo]);
 
   // KPI 2: Pagos registrados en el período
+  // Filtra las cuotas registradas dentro del período seleccionado, las relaciona
+  // con sus créditos y prepara los datos de cada pago. Calcula el monto total
+  // recaudado y organiza las transacciones por fecha, de la más reciente a la más antigua.
   const pagos = useMemo(() => {
     const creditoPorId = new Map();
     creditos.forEach((c) => creditoPorId.set(String(c.id), c));
@@ -226,7 +245,9 @@ export default function DashboardGerencial() {
     return { rows, total: rows.reduce((s, q) => s + q.monto, 0) };
   }, [cuotasRaw, creditos, periodo]);
 
-  // Tendencia: cobros de los últimos meses hasta el período seleccionado
+  // Construye una serie de seis meses a partir de la fecha seleccionada
+  // y acumula los montos de las cuotas registradas en cada mes para representar
+  // la evolución de los cobros en el gráfico.
   const pagosMensuales = useMemo(() => {
     const base = parseISODate(fechaFiltro);
     const meses = Array.from({ length: MESES_TENDENCIA }, (_, i) => {
@@ -247,6 +268,10 @@ export default function DashboardGerencial() {
   }, [cuotasRaw, fechaFiltro]);
 
   // KPI 3: Cartera (saldo pendiente, activos, pendientes y mora)
+  // Selecciona los créditos activos y pendientes, determina su estado de cartera
+  // según las cuotas vencidas y ordena los registros por prioridad. Calcula
+  // el saldo pendiente, el monto de créditos activos y las cantidades de créditos
+  // activos, pendientes y en mora.
   const cartera = useMemo(() => {
     const rows = creditos
       .filter((c) => c.status === "Activo" || c.status === "Pendiente")
@@ -268,6 +293,10 @@ export default function DashboardGerencial() {
   }, [creditos]);
 
   // KPI 4: Inventario bajo
+  // Compara el stock actual de cada producto con su stock mínimo establecido.
+  // Si el producto no tiene un mínimo definido, utiliza el valor predeterminado.
+  // Clasifica los productos como críticos o bajos y prioriza los que requieren
+  // reposición con mayor urgencia.
   const inventarioBajo = useMemo(
     () =>
       productos
@@ -290,6 +319,9 @@ export default function DashboardGerencial() {
   );
 
   // Tabla B: Distribución de productos por categoría
+  // Agrupa los productos por categoría y calcula la cantidad de productos,
+  // las unidades disponibles y el porcentaje que representa cada categoría
+  // respecto al catálogo total. Ordena los resultados por cantidad de productos.
   const distribucionCategorias = useMemo(() => {
     const grupos = {};
     productos.forEach((p) => {
