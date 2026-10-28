@@ -19,6 +19,7 @@ export const MODULES = {
   BITACORA: "BITACORA",
   PARAMETROS: "PARAMETROS",
   APP_MOVIL: "APP_MOVIL",
+  IMPORTACIONES: "IMPORTACIONES",
 };
 
 export const ACTIONS = {
@@ -27,15 +28,26 @@ export const ACTIONS = {
   EDIT: "EDIT",
   DELETE: "DELETE",
   EXPORT: "EXPORT",
+  IMPORT: "IMPORT",
 };
+
+// Acciones que concede el comodín "*" y el formato heredado de lista de módulos.
+// IMPORT queda fuera a propósito: solo se concede si está escrita en el módulo.
+export const ACCIONES_BASE = [ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EDIT, ACTIONS.DELETE, ACTIONS.EXPORT];
+
+// Módulos que admiten importación desde Excel
+export const MODULOS_IMPORTABLES = [MODULES.PRODUCTOS, MODULES.EMPLEADOS, MODULES.USUARIOS];
 
 // Mapa de permisos
 export const ROLE_PERMISSIONS = {
   [ROLES.SUPER_ADMIN]: {
     [MODULES.DASHBOARD]: ["*"],
-    [MODULES.USUARIOS]: ["*"],
+    [MODULES.USUARIOS]: ["*", ACTIONS.IMPORT],
     [MODULES.BITACORA]: ["*"],
     [MODULES.PARAMETROS]: ["*"],
+    [MODULES.PRODUCTOS]: [ACTIONS.IMPORT],
+    [MODULES.EMPLEADOS]: [ACTIONS.IMPORT],
+    [MODULES.IMPORTACIONES]: ["*"],
   },
   [ROLES.ADMIN]: {
     [MODULES.DASHBOARD]: ["*"],
@@ -101,11 +113,14 @@ export const hasPermission = (userRole, moduleName, action = ACTIONS.VIEW) => {
   
   if (!rolePerms) return false;
 
+  const modPerms = rolePerms[moduleName];
+
+  // IMPORT solo se concede escrita explícitamente en el módulo (ni "*" ni acceso total)
+  if (action === ACTIONS.IMPORT) return Array.isArray(modPerms) && modPerms.includes(ACTIONS.IMPORT);
+
   // Acceso total
   if (rolePerms["*"] && rolePerms["*"].includes("*")) return true;
 
-  const modPerms = rolePerms[moduleName];
-  
   // Excepción dura: el EMPLEADO siempre puede ver la APP_MOVIL aunque no esté en BD
   if (currentRole === ROLES.EMPLEADO && moduleName === MODULES.APP_MOVIL) {
     if (action === ACTIONS.VIEW) return true;
@@ -119,3 +134,7 @@ export const hasPermission = (userRole, moduleName, action = ACTIONS.VIEW) => {
   // Acceso por acción
   return modPerms.includes(action);
 };
+
+// Módulos importables en los que el rol tiene la acción IMPORT
+export const modulosConImport = (userRole) =>
+  MODULOS_IMPORTABLES.filter((modulo) => hasPermission(userRole, modulo, ACTIONS.IMPORT));
