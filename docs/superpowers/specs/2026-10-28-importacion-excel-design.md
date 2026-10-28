@@ -273,7 +273,7 @@ Errores de Auth:
 - `normalizar.test.js`: números, fechas (serie de Excel, formatos válidos e imposibles), encabezados con acentos, DNI y correo.
 - `leerExcel.test.js`: libros generados en la prueba con SheetJS (`.xlsx` y `.xls`); hoja vacía, columnas faltantes, tope de filas, filas vacías intermedias.
 - `validar.test.js`, por cada esquema: los casos del mockup (precio negativo, nombre vacío, stock negativo, estado no reconocido, departamento vacío, fecha `2026-05-40`, correo sin `@`), duplicado en el archivo, duplicado contra la base en ambos modos, `sin_cambios`, DNI de otro empleado, categoría o departamento inexistente, rol inexistente, inactivo o SUPER ADMIN, empleado ya vinculado.
-- `ejecutar.test.js`: lotes de 400, reintento exitoso, interrupción tras 3 fallos con `no_procesado`, candado ocupado, revalidación con cambios, reserva de códigos `EMP-NNNN`; Usuarios con borrado de la cuenta si falla `setDoc`, `email-already-in-use`, `too-many-requests` a mitad de archivo y correo de restablecimiento fallido.
+- `ejecutar.test.js`: tramos de 200 filas con su bloque de detalle, reintento exitoso, interrupción tras 3 fallos con `no_procesado`, candado ocupado, revalidación con cambios, reserva de códigos `EMP-NNNN`; Usuarios con borrado de la cuenta si falla `setDoc`, `email-already-in-use`, `too-many-requests` a mitad de archivo y correo de restablecimiento fallido.
 - `roles.test.js`: `IMPORT` no se concede con `"*"`, con acceso total ni con formato de lista; sí se concede cuando está explícita.
 
 ### 9.2 En el sistema — datos reales sobre la base real
