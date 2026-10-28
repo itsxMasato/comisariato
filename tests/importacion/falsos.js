@@ -9,6 +9,7 @@ const copiar = (v) => (v === undefined ? undefined : structuredClone(v));
 export function crearAlmacenFalso(datosIniciales = {}, { ahora = new Date("2026-10-28T12:00:00Z") } = {}) {
   const datos = new Map(Object.entries(datosIniciales).map(([r, d]) => [r, copiar(d)]));
   let fallosPendientes = 0;
+  let fallosCondicionales = { condicion: null, restantes: 0 };
   let contadorIds = 0;
 
   const resolver = (valores, base = {}) => {
@@ -51,6 +52,10 @@ export function crearAlmacenFalso(datosIniciales = {}, { ahora = new Date("2026-
     fallarCommit(n) {
       fallosPendientes = n;
     },
+    // Falla los próximos `n` commits cuyas rutas cumplan la condición
+    fallarCommitCuando(condicion, n) {
+      fallosCondicionales = { condicion, restantes: n };
+    },
     async leerTodos(coleccion) {
       return [...datos.entries()]
         .filter(([r]) => esHijoDirecto(r, coleccion))
@@ -72,6 +77,11 @@ export function crearAlmacenFalso(datosIniciales = {}, { ahora = new Date("2026-
         async commit() {
           if (fallosPendientes > 0) {
             fallosPendientes -= 1;
+            throw new Error("Fallo simulado de escritura");
+          }
+          const { condicion, restantes } = fallosCondicionales;
+          if (restantes > 0 && condicion(ops.map((op) => op.ruta))) {
+            fallosCondicionales.restantes -= 1;
             throw new Error("Fallo simulado de escritura");
           }
           const copia = new Map(datos);

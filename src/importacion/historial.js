@@ -42,8 +42,8 @@ export const liberarCandado = async (almacen, modulo) => {
   await lote.commit();
 };
 
-export const crearImportacion = async (almacen, { folio, modulo, modo, archivo, responsable, conteos }) => {
-  const id = almacen.nuevoId("importaciones");
+export const crearImportacion = async (almacen, { id: idDado, folio, modulo, modo, archivo, responsable, conteos }) => {
+  const id = idDado ?? almacen.nuevoId("importaciones");
   const lote = almacen.lote();
   lote.set(`importaciones/${id}`, {
     folio,
