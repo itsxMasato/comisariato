@@ -12,12 +12,21 @@ export function crearAlmacenFalso(datosIniciales = {}, { ahora = new Date("2026-
   let fallosCondicionales = { condicion: null, restantes: 0 };
   let contadorIds = 0;
 
+  // Como Firestore: la marca de servidor puede ir también dentro de objetos y listas
+  const resolverValor = (v) => {
+    if (v === MARCA) return new Date(almacen.ahora);
+    if (Array.isArray(v)) return v.map(resolverValor);
+    if (v && typeof v === "object" && !(v instanceof Date)) {
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, resolverValor(x)]));
+    }
+    return copiar(v);
+  };
+
   const resolver = (valores, base = {}) => {
     const out = { ...base };
     Object.entries(valores).forEach(([k, v]) => {
       if (v === BORRAR) delete out[k];
-      else if (v === MARCA) out[k] = new Date(almacen.ahora);
-      else out[k] = copiar(v);
+      else out[k] = resolverValor(v);
     });
     return out;
   };

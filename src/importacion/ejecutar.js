@@ -72,7 +72,7 @@ const registroDeFila = (fila, estado, { documentoId = null, aviso = null } = {})
   ...(estado === "rechazado" && { crudos: fila.crudos }),
 });
 
-const escribirBitacora = async (almacen, usuario, tipoModificacion, detalles) => {
+export const escribirBitacora = async (almacen, usuario, tipoModificacion, detalles) => {
   try {
     const lote = almacen.lote();
     lote.set(`bitacoraactividades/${almacen.nuevoId("bitacoraactividades")}`, {
