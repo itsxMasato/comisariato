@@ -138,3 +138,7 @@ export const hasPermission = (userRole, moduleName, action = ACTIONS.VIEW) => {
 // Módulos importables en los que el rol tiene la acción IMPORT
 export const modulosConImport = (userRole) =>
   MODULOS_IMPORTABLES.filter((modulo) => hasPermission(userRole, modulo, ACTIONS.IMPORT));
+
+// El historial de importaciones lo ve quien tiene el módulo o puede importar en alguno
+export const puedeVerImportaciones = (userRole) =>
+  hasPermission(userRole, MODULES.IMPORTACIONES, ACTIONS.VIEW) || modulosConImport(userRole).length > 0;

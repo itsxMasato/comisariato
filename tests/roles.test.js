@@ -4,6 +4,7 @@ import {
   MODULES,
   hasPermission,
   modulosConImport,
+  puedeVerImportaciones,
   setDynamicRoles,
 } from "../src/utils/roles";
 
@@ -51,5 +52,16 @@ describe("acción IMPORT", () => {
     expect(hasPermission(null, "PRODUCTOS", "VIEW")).toBe(false);
     expect(hasPermission("NO EXISTE", "PRODUCTOS", IMPORT)).toBe(false);
     expect(modulosConImport(null)).toEqual([]);
+  });
+
+  test("el historial lo ve quien tiene IMPORTACIONES o IMPORT en algún módulo", () => {
+    setDynamicRoles([
+      { nombre: "A", permisos: { IMPORTACIONES: ["VIEW"] } },
+      { nombre: "B", permisos: { EMPLEADOS: ["IMPORT"] } },
+      { nombre: "C", permisos: { EMPLEADOS: ["*"] } },
+    ]);
+    expect(puedeVerImportaciones("A")).toBe(true);
+    expect(puedeVerImportaciones("B")).toBe(true);
+    expect(puedeVerImportaciones("C")).toBe(false);
   });
 });

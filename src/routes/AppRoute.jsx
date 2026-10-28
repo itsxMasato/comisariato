@@ -54,6 +54,15 @@ import DatosVariables from "../pages/DatosVariables";
 
 // Importación desde Excel
 import ImportacionWizard from "../pages/importacion/ImportacionWizard";
+import HistorialImportaciones from "../pages/importacion/HistorialImportaciones";
+import { puedeVerImportaciones } from "../utils/roles";
+
+// El historial lo ve quien tiene IMPORTACIONES o IMPORT en algún módulo
+const ImportacionesRoute = ({ children }) => {
+  const { role, loading } = useAuth();
+  if (loading) return <p>Cargando...</p>;
+  return puedeVerImportaciones(role) ? children : <Error403 />;
+};
 
 export default function AppRouter() {
   return (
@@ -162,6 +171,15 @@ export default function AppRouter() {
               <ImportRoute>
                 <ImportacionWizard />
               </ImportRoute>
+            }
+          />
+
+          <Route
+            path="/importaciones"
+            element={
+              <ImportacionesRoute>
+                <HistorialImportaciones />
+              </ImportacionesRoute>
             }
           />
 

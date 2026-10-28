@@ -28,6 +28,13 @@ export const ESTADOS_REVERSION = {
   no_revertido: "No revertido",
 };
 
+export const MOTIVOS_NO_DESHACER = {
+  plazo_vencido: "Pasaron más de 12 horas desde que terminó la importación.",
+  estado: "La importación ya se revirtió o todavía está en proceso.",
+  sin_permiso: "No tenés permiso para deshacer esta importación.",
+  nada_que_revertir: "La importación no insertó ni actualizó registros.",
+};
+
 // Pantalla de origen de cada módulo importable
 export const RUTA_MODULO = { productos: "/productos", empleados: "/empleados", usuarios: "/usuarios" };
 
