@@ -41,10 +41,14 @@ export const puedeDeshacer = (importacion, { uid, role }, ahora) => {
   return restanteMs > 0 ? { ok: true, reanudar: false, restanteMs } : { ok: false, motivo: "plazo_vencido" };
 };
 
-// Códigos de los créditos o reservas que referencian un producto o un empleado
-const creditosQueUsan = (creditos, { productoDocId, sku, empleadoDocId }) =>
+// Créditos o reservas que referencian un producto o un empleado. Un empleado puede
+// estar referenciado por su ID, su DNI o su código (igual que buildPersonFinder del dashboard).
+const creditosQueUsan = (creditos, { productoDocId, sku, empleado }) =>
   creditos.filter((c) => {
-    if (empleadoDocId) return c.empleadoId === empleadoDocId;
+    if (empleado) {
+      const claves = [empleado.id, empleado.dni, empleado.codigoEmpleado].filter(Boolean).map(normalizarClave);
+      return [c.empleadoId, c.usuarioId].filter(Boolean).some((ref) => claves.includes(normalizarClave(ref)));
+    }
     const refs = [c.productoId, ...(c.items || []).flatMap((it) => [it.productoId, it.id])].filter(Boolean);
     return refs.some((ref) => ref === productoDocId || (sku && normalizarClave(ref) === sku));
   });
@@ -83,7 +87,7 @@ const planDeFila = async ({ almacen, esquema, fila, importacionId, creditos, por
     const usados =
       esquema.id === "productos"
         ? creditosQueUsan(creditos, { productoDocId: fila.documentoId, sku: normalizarClave(doc.productoId) })
-        : creditosQueUsan(creditos, { empleadoDocId: fila.documentoId });
+        : creditosQueUsan(creditos, { empleado: { ...doc, id: fila.documentoId } });
     if (usados.length) return res("no_revertido", `Usado en el crédito ${codigoCredito(usados[0])}`);
     if (esquema.id === "empleados" && (doc.uid || doc.usuarioId)) return res("no_revertido", "Tiene un usuario vinculado");
     return res("revertido", null, [], [["delete", ruta]]);

@@ -37,7 +37,9 @@ service cloud.firestore {
     }
 
     match /usuarios/{uid} {
-      allow read: if activo();
+      // Cada uno puede leer su propio perfil aunque esté deshabilitado: así la app
+      // sabe por qué no tiene acceso y cierra la sesión con el mensaje correcto
+      allow read: if activo() || (request.auth != null && request.auth.uid == uid);
       // Solo SUPER ADMIN puede dar o quitar el rol SUPER ADMIN
       allow create: if personal()
         && (request.resource.data.rol != 'SUPER ADMIN' || superAdmin());

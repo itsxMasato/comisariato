@@ -50,6 +50,7 @@ export const AuthProvider = ({ children }) => {
 
       if (!currentUser) {
         limpiarSesion();
+        setRolesError(false);
         setLoading(false);
         return;
       }
@@ -72,8 +73,15 @@ export const AuthProvider = ({ children }) => {
         },
         (error) => {
           console.error("Error leyendo roles:", error);
-          setRolesError(true);
-          setLoading(false);
+          // Sin permiso (perfil deshabilitado o inexistente): decide el listener del perfil,
+          // que cierra la sesión. Con otro error (p. ej. sin conexión) se muestra el aviso.
+          if (error.code === "permission-denied") {
+            rolesListos = true;
+            marcarListo();
+          } else {
+            setRolesError(true);
+            setLoading(false);
+          }
         },
       );
 
@@ -120,8 +128,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     const userEmail = user?.email || "Usuario";
+    // Se registra antes de cerrar la sesión: sin sesión las reglas no permiten escribir la bitácora
+    await logActividad("Autenticación", "Cierre de sesión", { email: userEmail });
     await signOut(auth);
-    logActividad("Autenticación", "Cierre de sesión", { email: userEmail });
   };
 
   if (rolesError) {

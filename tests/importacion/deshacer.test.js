@@ -138,6 +138,25 @@ describe("deshacerImportacion", () => {
     expect((await reversionDe(a, 0)).motivo).toBe("Tiene un usuario vinculado");
   });
 
+  test.each([
+    ["por ID de documento", { empleadoId: "e1" }],
+    ["por DNI", { empleadoId: "0801199012345" }],
+    ["por código de empleado", { empleadoId: "emp-0001" }],
+  ])("no borra un empleado con un crédito que lo referencia %s", async (_, credito) => {
+    setDynamicRoles([{ nombre: "IMPORTADOR", permisos: { EMPLEADOS: ["IMPORT"] } }]);
+    const a = preparar(
+      {
+        "empleados/e1": { codigoEmpleado: "EMP-0001", dni: "0801199012345", ...marca },
+        "creditos/c1": { creditoId: "CR-0007", ...credito },
+      },
+      [filaReg(2, "insertado", "e1")],
+      { modulo: "empleados" },
+    );
+    await deshacer(a);
+    expect(await a.leer("empleados/e1")).not.toBeNull();
+    expect((await reversionDe(a, 0)).motivo).toBe("Usado en el crédito CR-0007");
+  });
+
   test("no borra un registro editado después de la importación", async () => {
     const a = preparar({ "productos/p1": { productoId: "A-1", importacionId: "imp1", tipoModificacion: "Actualización de Producto" } }, [
       filaReg(2, "insertado", "p1"),
