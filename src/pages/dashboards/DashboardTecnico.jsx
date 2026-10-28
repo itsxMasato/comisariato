@@ -39,6 +39,8 @@ const COLECCIONES_MODULO = {
 // Módulos de logActividad que se agrupan como configuración
 const MODULOS_CONFIGURACION = ["departamentos", "categorias", "parametros generales"];
 
+// Obtiene el usuario asociado al evento utilizando los campos disponibles
+// en el registro. Si no encuentra un usuario válido, asigna "Sistema".
 const obtenerUsuario = (data) =>
   [
     data.usuarioModifico,
@@ -52,6 +54,8 @@ const obtenerUsuario = (data) =>
     .map((v) => String(v || "").trim())
     .find((v) => v && v.toLowerCase() !== "sistema") || "Sistema";
 
+// Genera una descripción legible del registro según su colección,
+// utilizando su nombre, identificador o correo cuando están disponibles.
 const describirRegistro = (coleccion, data) => {
   const nombre =
     data.nombre ||
@@ -70,12 +74,19 @@ const describirRegistro = (coleccion, data) => {
   return nombre ? `${etiqueta} (${nombre})` : etiqueta;
 };
 
+// Convierte la primera letra de cada palabra a mayúscula para presentar
+// los nombres de los roles de forma uniforme.
 const capitalizar = (texto) => texto.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 
+// Normalizan las fechas de creación y modificación de los registros
+// mediante toDate para facilitar su comparación con el período seleccionado.
 const fechaCreacion = (data) => toDate(data.fechaRegistro || data.createdAt || data.fecha);
 const fechaModificacion = (data) =>
   toDate(data.fechaModificacion || data.fechaActualizacion || data.updatedDate || data.updatedAt);
 
+// Componente reutilizable para presentar indicadores principales.
+// Recibe el título, valor, distintivo, colores, gráfico complementario
+// y texto de resumen de cada tarjeta.
 const KpiCard = ({ accent, icon, badge, badgeClass, label, value, valueSuffix, valueSuffixClass, chart, footer }) => (
   <article className={`bg-white p-4 rounded-xl shadow-sm border-l-4 ${accent.border} flex flex-col justify-between`}>
     <div>
@@ -98,6 +109,8 @@ const KpiCard = ({ accent, icon, badge, badgeClass, label, value, valueSuffix, v
   </article>
 );
 
+// Define las combinaciones de colores utilizadas para distinguir
+// visualmente las tarjetas de indicadores.
 const ACCENTS = {
   green: { border: "border-green-800", iconBg: "bg-green-50", text: "text-green-800" },
   emerald: { border: "border-emerald-700", iconBg: "bg-emerald-50", text: "text-emerald-700" },
@@ -108,6 +121,9 @@ export default function DashboardTecnico() {
   const [colecciones, setColecciones] = useState({});
 
   useEffect(() => {
+    //El dashboard obtiene información de la colección bitacoraactividades y de las colecciones definidas en 
+    // COLECCIONES_MODULO. La información se recupera de Firestore mediante onSnapshot, lo que permite recibir 
+    // actualizaciones cuando cambian los datos.
     const nombres = ["bitacoraactividades", ...Object.keys(COLECCIONES_MODULO)];
     const unsubs = nombres.map((nombre) =>
       onSnapshot(collection(db, nombre), (s) =>
@@ -117,17 +133,21 @@ export default function DashboardTecnico() {
     return () => unsubs.forEach((u) => u());
   }, []);
 
+  // Calcula el rango de fechas del dashboard y obtiene las listas de usuarios
+  // y roles desde los datos almacenados en el estado de las colecciones.
   const periodo = useMemo(() => lastDaysRange(fechaFiltro, DIAS_PERIODO), [fechaFiltro]);
   const usuarios = useMemo(() => colecciones.usuarios || [], [colecciones.usuarios]);
   const roles = useMemo(() => colecciones.roles || [], [colecciones.roles]);
 
-  // ──────────────────────────────────────────────────────────
-  // EVENTOS (bitácora explícita + creaciones/modificaciones por colección)
-  // ──────────────────────────────────────────────────────────
+  // Construye la lista de eventos a partir de la bitácora y las colecciones del sistema.
+  // Identifica la fecha, el usuario, el módulo, el detalle y el tipo de operación.
+  // Finalmente, ordena los eventos del más reciente al más antiguo.
   const eventos = useMemo(() => {
     const lista = [];
 
     (colecciones.bitacoraactividades || []).forEach((d) => {
+      //Identifica las fechas de creación y modificación de los registros para contabilizar las operaciones dentro 
+      // del período seleccionado. Utiliza los campos de fecha disponibles en cada documento.
       const fecha = toDate(d.fechaRegistro);
       if (!fecha) return;
       const accion = String(d.tipoModificacion || d.accion || "Evento del sistema");
@@ -178,8 +198,12 @@ export default function DashboardTecnico() {
     return lista.sort((a, b) => b.fecha - a.fecha);
   }, [colecciones]);
 
+  // Filtra los eventos según el período seleccionado para que los indicadores
+  // y gráficos de actividad consideren únicamente los eventos dentro del rango.
   const eventosPeriodo = useMemo(() => eventos.filter((e) => inRange(e.fecha, periodo)), [eventos, periodo]);
 
+  // Agrupa los eventos registrados durante el período seleccionado por módulo y tipo de operación: creación, 
+  // modificación y acceso. Calcula los totales para presentarlos en el dashboard
   const actividad = useMemo(() => {
     const porModulo = {};
     const totales = { Creación: 0, Modificación: 0, Acceso: 0 };
@@ -201,7 +225,10 @@ export default function DashboardTecnico() {
     };
   }, [eventosPeriodo]);
 
+  //Clasifica las cuentas de usuario según su estado, contabiliza las habilitadas 
+  // y deshabilitadas y calcula cuántas fueron registradas o modificadas durante el período seleccionado.
   const cuentas = useMemo(() => {
+    //Cuenta los usuarios cuya fecha de creación se encuentra dentro del período calculado para el dashboard.
     const habilitados = usuarios.filter((u) => isActivo(u.estado));
     return {
       habilitados,
@@ -211,12 +238,15 @@ export default function DashboardTecnico() {
     };
   }, [usuarios, periodo]);
 
+  //Calcula el número de roles activos e inactivos a partir de los registros de la colección roles. 
+  // Los roles cuyo estado sea Deshabilitado se contabilizan como inactivos; los demás se consideran activos.
   const rolesResumen = useMemo(() => {
     const activos = roles.filter((r) => (r.estado || "Activo") !== "Deshabilitado");
     return { activos: activos.length, inactivos: roles.length - activos.length };
   }, [roles]);
 
-  // Usuarios habilitados por rol (barras ordenadas; la cola se agrupa en "Otros")
+  // Cuenta los usuarios habilitados y los agrupa según el rol asignado. Los resultados se presentan en un gráfico 
+  // de barras. Si hay más de seis grupos de roles, los restantes se agrupan bajo la categoría «Otros».
   const rolesDetalle = useMemo(() => {
     const conteo = {};
     cuentas.habilitados.forEach((u) => {
@@ -237,9 +267,13 @@ export default function DashboardTecnico() {
     ];
   }, [cuentas.habilitados]);
 
+  // Obtiene el total de cuentas habilitadas para utilizarlo en las tarjetas
+  // de indicadores y en la distribución de usuarios por rol.
   const totalHabilitados = cuentas.habilitados.length;
 
-  // Tendencia diaria de eventos dentro del período
+  // Genera los días del período seleccionado e inicializa su contador de eventos.
+  // Después, distribuye los eventos por fecha para obtener la actividad diaria
+  // que se representa en el gráfico de columnas.
   const actividadDiaria = useMemo(() => {
     const dias = Array.from({ length: DIAS_PERIODO }, (_, i) => {
       const d = new Date(periodo.start.getFullYear(), periodo.start.getMonth(), periodo.start.getDate() + i);
@@ -253,11 +287,15 @@ export default function DashboardTecnico() {
     return dias;
   }, [eventosPeriodo, periodo]);
 
+  // Obtiene los eventos hasta la fecha final del período y selecciona los cinco
+  // más recientes para mostrarlos en la tabla de bitácora.
   const bitacoraRegistros = useMemo(
     () => eventos.filter((e) => e.fecha <= periodo.end).slice(0, ULTIMOS_REGISTROS),
     [eventos, periodo],
   );
 
+  // Calcula el total de transacciones en módulos sumando las operaciones
+  // de creación y modificación contabilizadas durante el período.
   const eventosModulos = actividad.creados + actividad.modificados;
 
   return (
