@@ -36,7 +36,7 @@
 
 ## Fase A — Base y correcciones del sistema
 
-### Tarea 1: Vitest y limpieza del repositorio (falla 9)
+### Task 1 (Tarea 1): Vitest y limpieza del repositorio (falla 9)
 
 **Archivos:**
 - Modificar: `package.json` (script `"test": "vitest run"`, devDependency `vitest`)
@@ -52,7 +52,7 @@
 - [ ] **Paso 6:** `npm run build`. Esperado: compila.
 - [ ] **Paso 7:** Commit `"Agrega Vitest y elimina archivos temporales del repositorio"`.
 
-### Tarea 2: Permisos — `IMPORT`, `IMPORTACIONES` y lista única de módulos (falla 8)
+### Task 2 (Tarea 2): Permisos — `IMPORT`, `IMPORTACIONES` y lista única de módulos (falla 8)
 
 **Archivos:**
 - Modificar: `src/utils/roles.js`
@@ -76,7 +76,7 @@
 - [ ] **Paso 6:** `npm run build` y `npx eslint src/utils/roles.js src/pages/Usuarios.jsx` (solo se acepta el falso positivo preexistente de `motion`).
 - [ ] **Paso 7:** Commit `"Permisos: acción IMPORT explícita, módulo IMPORTACIONES y lista única de módulos"`.
 
-### Tarea 3: Sesión segura — cuentas sin documento y fallo al leer roles (fallas 1 y 7)
+### Task 3 (Tarea 3): Sesión segura — cuentas sin documento y fallo al leer roles (fallas 1 y 7)
 
 **Archivos:**
 - Crear: `src/auth/sesion.js`
@@ -102,7 +102,7 @@
 - [ ] **Paso 7: Verificación previa obligatoria con el usuario:** antes de hacer merge de esta tarea, el usuario confirma en la consola de Firebase que **su propia cuenta de administrador tiene documento en `usuarios`** con `rol: "SUPER ADMIN"` y `estado: "Activo"`. Si no lo tiene, quedaría sin acceso.
 - [ ] **Paso 8:** Commit `"Sesión: una cuenta sin perfil ya no recibe rol de administrador; manejo del error al leer roles"`.
 
-### Tarea 4: Adaptadores `almacen` y `cuentas` y su versión falsa para pruebas
+### Task 4 (Tarea 4): Adaptadores `almacen` y `cuentas` y su versión falsa para pruebas
 
 **Archivos:**
 - Crear: `src/importacion/almacenFirestore.js`, `src/importacion/cuentasFirebase.js`
@@ -131,7 +131,7 @@
 - [ ] **Paso 4:** `npm test -- falsos`. Esperado: PASS. `npm run build`.
 - [ ] **Paso 5:** Commit `"Importación: adaptadores de Firestore y Auth con versiones falsas para pruebas"`.
 
-### Tarea 5: Contador de códigos de empleado (falla 5)
+### Task 5 (Tarea 5): Contador de códigos de empleado (falla 5)
 
 **Archivos:**
 - Crear: `src/utils/contadores.js`
@@ -153,7 +153,7 @@
 - [ ] **Paso 5:** En `Empleados.jsx`: el formulario de alta sigue mostrando el código sugerido, con la nota `"(se confirma al guardar)"`. En `handleSave` de un empleado nuevo, `payload.codigoEmpleado = (await reservarCodigosEmpleado(almacenFirestore, 1))[0]`.
 - [ ] **Paso 6:** `npm run build`. Commit `"Empleados: el código EMP se reserva con un contador transaccional"`.
 
-### Tarea 6: SKU único en Productos (falla 6)
+### Task 6 (Tarea 6): SKU único en Productos (falla 6)
 
 **Archivos:**
 - Crear: `src/utils/validaciones.js`
@@ -170,7 +170,7 @@
 - [ ] **Paso 5:** En `handleSave` de `Productos.jsx`, antes de escribir: si `skuDuplicado(productos crudos, sku, selectedProduct?.id)`, mostrar `sileo.error({ title: "Código duplicado", description: "Ya existe el producto «<nombre>» con el código <sku>." })` y no guardar. También rechazar SKU vacío, `precioContado` que no sea un número mayor a 0 y `stock` que no sea un entero mayor o igual a 0, con el mismo tipo de mensaje.
 - [ ] **Paso 6:** `npm run build`. Commit `"Productos: valida código único, precio y stock antes de guardar"`.
 
-### Tarea 7: Reglas de seguridad de Firestore (falla 2)
+### Task 7 (Tarea 7): Reglas de seguridad de Firestore (falla 2)
 
 **Archivos:**
 - Crear: `firestore.rules`
@@ -201,7 +201,7 @@
 
 ## Fase B — Lógica de importación
 
-### Tarea 8: SheetJS, normalización y lectura del archivo
+### Task 8 (Tarea 8): SheetJS, normalización y lectura del archivo
 
 **Archivos:**
 - Modificar: `package.json` (SheetJS desde el CDN, ver restricciones globales)
@@ -233,7 +233,7 @@
 - [ ] **Paso 6:** `npm test`. Esperado: PASS. `npm run build`: SheetJS tiene que quedar en un chunk aparte (revisar la salida de Vite).
 - [ ] **Paso 7:** Commit `"Importación: lectura de Excel con SheetJS 0.20.3 y normalización de valores"`.
 
-### Tarea 9: Validación genérica y esquema de Productos
+### Task 9 (Tarea 9): Validación genérica y esquema de Productos
 
 **Archivos:**
 - Crear: `src/importacion/validar.js`, `src/importacion/esquemas/productos.js`, `src/importacion/esquemas/index.js`
@@ -261,7 +261,7 @@
 - [ ] **Paso 4:** `npm test`. Esperado: PASS.
 - [ ] **Paso 5:** Commit `"Importación: validación genérica y esquema de Productos"`.
 
-### Tarea 10: Esquemas de Empleados y Usuarios
+### Task 10 (Tarea 10): Esquemas de Empleados y Usuarios
 
 **Archivos:**
 - Crear: `src/importacion/esquemas/empleados.js`, `src/importacion/esquemas/usuarios.js` (registrarlos en `index.js`)
@@ -274,7 +274,7 @@
 - [ ] **Paso 5:** `npm test`. Esperado: PASS.
 - [ ] **Paso 6:** Commit `"Importación: esquemas de Empleados y Usuarios"`.
 
-### Tarea 11: Contexto, historial y candado
+### Task 11 (Tarea 11): Contexto, historial y candado
 
 **Archivos:**
 - Crear: `src/importacion/contexto.js`, `src/importacion/historial.js`
@@ -295,7 +295,7 @@
 - [ ] **Paso 4:** `npm test`. Esperado: PASS.
 - [ ] **Paso 5:** Commit `"Importación: contexto, historial y candado por módulo"`.
 
-### Tarea 12: Ejecución para Productos y Empleados
+### Task 12 (Tarea 12): Ejecución para Productos y Empleados
 
 **Archivos:**
 - Crear: `src/importacion/ejecutar.js`, `src/importacion/esperar.js` (`esperar(ms)`; en las pruebas se reemplaza con `vi.useFakeTimers` o se inyecta)
@@ -321,7 +321,7 @@
 - [ ] **Paso 4:** `npm test`. Esperado: PASS.
 - [ ] **Paso 5:** Commit `"Importación: ejecución por tramos atómicos con reintentos, interrupción y revalidación"`.
 
-### Tarea 13: Ejecución para Usuarios
+### Task 13 (Tarea 13): Ejecución para Usuarios
 
 **Archivos:**
 - Modificar: `src/importacion/ejecutar.js` (rama `esquema.id === "usuarios"`)
@@ -341,7 +341,7 @@
 - [ ] **Paso 4:** `npm test`. Esperado: PASS.
 - [ ] **Paso 5:** Commit `"Importación: creación de usuarios de a uno, con borrado de cuentas huérfanas"`.
 
-### Tarea 14: Deshacer y reportes Excel
+### Task 14 (Tarea 14): Deshacer y reportes Excel
 
 **Archivos:**
 - Crear: `src/importacion/deshacer.js`, `src/importacion/reporte.js`
@@ -363,7 +363,7 @@
 
 ## Fase C — Interfaz
 
-### Tarea 15: Asistente de importación
+### Task 15 (Tarea 15): Asistente de importación
 
 **Archivos:**
 - Crear: `src/pages/importacion/ImportacionWizard.jsx`, `StepperHeader.jsx`, `Paso1Seleccion.jsx`, `Paso2VistaPrevia.jsx`, `Paso3Confirmacion.jsx`, `Paso4Resultado.jsx`, `ModalCancelar.jsx`, `ModalConfirmar.jsx`, `ModalDetalleFila.jsx`
@@ -378,7 +378,7 @@ Partir del markup de `ImportacionExcel/` (estilos y textos), con estos cambios: 
 - [ ] **Paso 4:** Verificación en el navegador (`npm run dev`), **sin confirmar ninguna importación**: con un Excel real cargado, la vista previa clasifica bien y la plantilla se descarga; `/importar/inexistente` y un rol sin `IMPORT` → 403.
 - [ ] **Paso 5:** Commit `"Importación: asistente de 4 pasos"`.
 
-### Tarea 16: Historial, deshacer y menú
+### Task 16 (Tarea 16): Historial, deshacer y menú
 
 **Archivos:**
 - Crear: `src/pages/importacion/HistorialImportaciones.jsx`, `ModalDeshacer.jsx`, `DetalleImportacion.jsx`
@@ -390,7 +390,7 @@ Partir del markup de `ImportacionExcel/` (estilos y textos), con estos cambios: 
 - [ ] **Paso 3:** `npm run build` y lint de los archivos nuevos.
 - [ ] **Paso 4:** Commit `"Importación: historial, detalle por folio y deshacer"`.
 
-### Tarea 17: Botones en los módulos e índices de Firestore
+### Task 17 (Tarea 17): Botones en los módulos e índices de Firestore
 
 **Archivos:**
 - Modificar: `src/pages/Productos.jsx`, `src/pages/Empleados.jsx`, `src/pages/Usuarios.jsx` (botón "Importar desde Excel", junto a los botones de exportar o crear que ya existen, visible con `hasPermission(role, MÓDULO, ACTIONS.IMPORT)`; navega a `/importar/<modulo>`)
@@ -404,13 +404,13 @@ Partir del markup de `ImportacionExcel/` (estilos y textos), con estos cambios: 
 
 ## Fase D — Verificación
 
-### Tarea 18: Revisión completa de la rama
+### Task 18 (Tarea 18): Revisión completa de la rama
 
 - [ ] **Paso 1:** `npm test` (todo PASS), `npm run build` y `npm run lint`. Anotar los errores de lint y separar los que ya existían (comparar con `git stash` / `main`) de los nuevos. **Los nuevos tienen que ser cero.**
 - [ ] **Paso 2:** Recorrer la especificación sección por sección y anotar cualquier requisito sin implementar. Corregirlo antes de seguir.
 - [ ] **Paso 3:** Revisión de toda la rama con superpowers:requesting-code-review. Aplicar las correcciones confirmadas y hacer commit.
 
-### Tarea 19: Prueba con datos reales (con el usuario)
+### Task 19 (Tarea 19): Prueba con datos reales (con el usuario)
 
 Todo en esta tarea requiere **confirmación explícita del usuario antes de cada escritura**.
 
