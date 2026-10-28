@@ -45,6 +45,14 @@ export const formatearValor = (v) => {
   return String(v);
 };
 
+// Valor de una celda para la vista previa: el que se va a guardar y, si el sistema
+// lo corrigió (mayúsculas, tildes), lo que decía el Excel
+export const valorParaMostrar = (crudo, valor) => {
+  if (valor === undefined) return { texto: formatearValor(typeof crudo === "string" ? crudo.trim() : crudo), original: null };
+  const original = typeof crudo === "string" && typeof valor === "string" && crudo.trim().replace(/\s+/g, " ") !== valor ? crudo.trim() : null;
+  return { texto: formatearValor(valor), original };
+};
+
 export const formatearFechaHora = (d) =>
   d instanceof Date
     ? d.toLocaleString("es-HN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })

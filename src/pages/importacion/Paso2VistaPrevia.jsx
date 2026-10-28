@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { ESTADOS_FILA, formatearValor } from "./estados";
+import { ESTADOS_FILA, valorParaMostrar } from "./estados";
 
 const FILTROS = [
   { id: "todos", etiqueta: "Todos", resumen: "recibidos" },
@@ -132,11 +132,25 @@ export default function Paso2VistaPrevia({ esquema, clasificacion, mapa, filtro,
                         </span>
                       </td>
                       <td className="px-5 py-3 font-mono font-bold text-slate-800">{f.clave || <span className="text-slate-400 font-sans">Se asigna al importar</span>}</td>
-                      {columnasVisibles.map((c) => (
-                        <td key={c.campo} className="px-5 py-3 text-slate-700 max-w-[220px] truncate" title={String(f.crudos[c.encabezado] ?? "")}>
-                          {formatearValor(f.crudos[c.encabezado])}
-                        </td>
-                      ))}
+                      {columnasVisibles.map((c) => {
+                        const { texto, original } = valorParaMostrar(f.crudos[c.encabezado], f.valores[c.campo]);
+                        return (
+                          <td key={c.campo} className="px-5 py-3 text-slate-700 max-w-[220px]">
+                            <span className="block truncate" title={texto}>
+                              {texto}
+                            </span>
+                            {original && (
+                              <span
+                                className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-blue-700"
+                                title="El sistema lo ajustó al nombre registrado"
+                              >
+                                <span className="material-symbols-outlined text-[12px]">auto_fix_high</span>
+                                en el Excel: «{original}»
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
                       <td className="px-5 py-3 text-right">
                         {conDetalle ? (
                           <button
@@ -159,7 +173,9 @@ export default function Paso2VistaPrevia({ esquema, clasificacion, mapa, filtro,
         </div>
         <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
           Mostrando <strong className="text-slate-800">{filas.length}</strong> de <strong className="text-slate-800">{clasificacion.filas.length}</strong> filas.
-          Las filas rechazadas, omitidas y sin cambios no se escriben.
+          Las filas rechazadas, omitidas y sin cambios no se escriben. Los valores marcados con{" "}
+          <span className="material-symbols-outlined text-[12px] align-middle text-blue-700">auto_fix_high</span> se ajustaron al nombre
+          registrado en el sistema (mayúsculas o tildes).
         </div>
       </div>
     </div>
