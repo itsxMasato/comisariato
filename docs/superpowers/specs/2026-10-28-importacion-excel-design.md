@@ -311,7 +311,7 @@ Las filas con otro estado (`rechazado`, `omitido`, `sin_cambios`, `no_procesado`
 - **Durante la ejecución:** barra de progreso; se deshabilitan Cancelar y Atrás.
 - **Cancelar:** solo disponible antes de ejecutar. Descarta el archivo y vuelve al módulo de origen.
 - **Resultado:** según el estado final. *Interrumpida* explica qué entró, qué no y cómo recuperarse (§6.2).
-- Las notificaciones usan `sonner`, que ya usa el proyecto.
+- Las notificaciones usan `sileo` (`sileo.error`, `sileo.success`), que es la librería que monta `App.jsx`.
 
 ## 9. Pruebas
 
