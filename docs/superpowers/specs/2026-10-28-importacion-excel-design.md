@@ -16,10 +16,12 @@ Permitir la carga masiva de registros desde archivos Excel a **Productos**, **Em
 3. Ninguna falla (de red, de cuota, de cierre del navegador o de Auth) deja datos en un estado que no se pueda explicar desde el historial.
 4. Cada importación queda registrada en el historial con folio único, responsable, conteos y detalle por fila.
 5. Solo los roles con la acción `IMPORT` explícita en el módulo pueden importar. SUPER ADMIN la trae por defecto.
+6. Una importación se puede deshacer durante las 12 horas siguientes a su fin, sin borrar registros que ya se usan en otra parte ni pisar cambios hechos después de la importación.
 
 ### Fuera de alcance
 
-- Revertir (deshacer) una importación desde la interfaz. Se guarda el valor anterior de cada campo actualizado para que sea posible en el futuro, pero no se construye la función.
+- Deshacer una importación más de una vez, o después de las 12 horas.
+- Borrar cuentas de Firebase Auth al deshacer (requiere Admin SDK; las cuentas se deshabilitan, ver §6.5).
 - Importar a módulos distintos de Productos, Empleados y Usuarios.
 - Cloud Functions o cualquier procesamiento en el servidor (el proyecto está en el plan Spark).
 - Crear cuentas de la app móvil al importar empleados.
@@ -36,6 +38,7 @@ Permitir la carga masiva de registros desde archivos Excel a **Productos**, **Em
 | Empleados | La importación **no** crea cuentas de la app móvil. Se crean después importando Usuarios. |
 | Permiso | Acción `IMPORT` por módulo. **Debe darse explícitamente**: el comodín `"*"` y el formato heredado de lista de módulos **no** la incluyen. |
 | Librería | SheetJS `xlsx` **0.20.3** instalada desde `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`. No se usa el paquete `xlsx` de npm (abandonado en 0.18.5, con vulnerabilidades de prototype pollution y ReDoS). Se carga con `import()` dinámico solo dentro del asistente. |
+| Deshacer | Disponible 12 horas desde el fin de la importación, una sola vez. Lo puede hacer quien importó (si conserva `IMPORT` en el módulo) o un rol con `IMPORTACIONES: EDIT`. Los usuarios creados se deshabilitan, no se borran (§6.5). |
 | Pruebas | Vitest con Firestore simulado para la lógica. La verificación en el sistema se hace con datos reales sobre la base real (ver §9). |
 
 ## 3. Arquitectura
@@ -53,6 +56,7 @@ La lógica de importación es JavaScript puro, sin React, para poder probarla de
 | `validar.js` | `validar({ esquema, filas, modo, contexto }) → { filas: [FilaClasificada], resumen }`. Mapea encabezados, valida cada campo, detecta duplicados dentro del archivo y contra `contexto.existentes`, y calcula los cambios campo por campo para las filas a actualizar. Función pura. | esquemas |
 | `contexto.js` | `cargarContexto(esquema)`: lee de Firestore los datos necesarios para validar (registros existentes indexados por clave, `categorias`, `departamentos`, `roles`, `parametros/general`, empleados con usuario vinculado). | Firestore |
 | `ejecutar.js` | `ejecutarImportacion({ esquema, clasificacion, archivo, usuario, alAvanzar })`. Revalidación, candado, folio, lotes o creación de cuentas, historial y bitácora (§6). | Firestore, Auth, `contexto.js`, `validar.js`, `historial.js` |
+| `deshacer.js` | `puedeDeshacer(importacion, usuario, ahoraServidor)` (función pura: plazo, estado y permiso) y `deshacerImportacion({ importacion, usuario, alAvanzar })` (§6.5). | Firestore, `historial.js` |
 | `historial.js` | Crear y actualizar `importaciones/{id}`, escribir bloques de `filas`, obtener folio, tomar y liberar el candado, y calcular el estado mostrado (incluida *Interrumpida* por inactividad). | Firestore |
 | `reporte.js` | `generarPlantilla(esquema)` y `generarReporteRechazos(filas)`: generan archivos `.xlsx` con SheetJS. La plantilla se genera del esquema para que no se desincronicen. | SheetJS, esquemas |
 
@@ -69,6 +73,7 @@ Se adaptan los componentes del mockup `ImportacionExcel/`: `StepperHeader`, `Ste
 | `Paso4Resultado.jsx` | Folio real, conteos finales, descarga del reporte de rechazos y enlaces a historial o a una nueva importación. Muestra el progreso mientras se ejecuta. |
 | `ModalDetalleFila.jsx` | Motivo de rechazo por campo, o comparación valor anterior → valor nuevo. |
 | `HistorialImportaciones.jsx` | Tabla del historial, filtros, detalle por folio y botón "Nueva importación" con selector de módulo. |
+| `ModalDeshacer.jsx` | Confirmación de deshacer: qué se va a borrar, restaurar o deshabilitar, tiempo restante del plazo y resultado final con las filas que no se pudieron revertir. |
 
 ### 3.3 Rutas, menú y botones
 
@@ -166,12 +171,19 @@ modulo:           "productos" | "empleados" | "usuarios"
 modo:             "solo_nuevos" | "nuevos_y_actualizar"
 archivo:          { nombre, pesoBytes, hoja }
 estado:           "en_proceso" | "completada" | "completada_con_advertencias" | "interrumpida"
+                  | "revirtiendo" | "revertida" | "revertida_parcial"
 conteos:          { recibidos, insertados, actualizados, sinCambios, omitidos, rechazados, noProcesados }
 responsable:      { uid, correo, rol }
 fechaInicio:      Timestamp
 fechaFin:         Timestamp | null
 ultimaActividad:  Timestamp     // se actualiza después de cada lote o cuenta
 error:            string | null // motivo si quedó interrumpida
+reversion:        null | {      // se llena al deshacer
+  responsable:    { uid, correo, rol },
+  fechaInicio:    Timestamp,
+  fechaFin:       Timestamp | null,
+  conteos:        { revertidos, parciales, noRevertidos }
+}
 ```
 
 - `completada_con_advertencias`: terminó, pero hubo rechazados, omitidos o correos no enviados.
@@ -188,7 +200,12 @@ filas: [{
   documentoId,                       // id creado o actualizado
   errores: [{ campo, mensaje, valorRecibido }],
   cambios: [{ campo, anterior, nuevo }],
-  aviso                              // p. ej. "Cuenta creada, correo no enviado"
+  aviso,                             // p. ej. "Cuenta creada, correo no enviado"
+  reversion: null | {                // se llena al deshacer
+    estado,                          // revertido | revertido_parcial | no_revertido
+    camposNoRevertidos: [campo],
+    motivo                           // p. ej. "Usado en el crédito CR-0042"
+  }
 }]
 ```
 
@@ -246,6 +263,38 @@ Errores de Auth:
 3. Se libera el candado (si falla, vence solo a los 10 minutos).
 4. Se quita `beforeunload`.
 
+### 6.5 Deshacer una importación
+
+**Condiciones (`puedeDeshacer`)**
+- Estado `completada`, `completada_con_advertencias` o `interrumpida` (incluida la *Interrumpida (sin actividad)* de §5.1). Nunca `en_proceso`, `revirtiendo`, `revertida` ni `revertida_parcial`: se deshace una sola vez.
+- Plazo: **12 horas** desde `fechaFin`, o desde `ultimaActividad` si `fechaFin` es nulo. La hora actual se toma del servidor: es el `serverTimestamp` que queda escrito al tomar el candado, leído de vuelta. No se usa el reloj del equipo.
+- Permiso: (`responsable.uid` es el usuario actual **y** conserva `IMPORT` en el módulo) **o** el rol tiene `IMPORTACIONES: EDIT`.
+- Hay al menos una fila `insertado` o `actualizado`.
+
+**Flujo**
+1. Se toma el candado del módulo (§6.1, paso 3) y se verifica `puedeDeshacer` otra vez con la hora del servidor.
+2. Se marca `estado: "revirtiendo"` y se llena `reversion.responsable` y `reversion.fechaInicio`.
+3. Se cargan los datos necesarios para verificar dependencias: la colección `creditos` (que también contiene las reservas) y los registros afectados.
+4. Se recorren los bloques de `filas` en orden. Cada bloque es un `writeBatch` con las reversiones de sus filas y el bloque actualizado con el resultado de cada una. Reintentos y corte por falla, igual que en §6.2.
+5. Al terminar: `estado: "revertida"` si todas las filas se revirtieron, o `"revertida_parcial"` si alguna quedó `revertido_parcial` o `no_revertido`. Se registra `reversion.fechaFin` y `reversion.conteos`, se anota en la Bitácora (`"Deshacer importación"`, con el folio) y se libera el candado.
+6. Si se interrumpe a la mitad, queda `revirtiendo` con `ultimaActividad` vieja. Con la misma regla de inactividad (10 minutos), el historial permite **reanudar** la reversión, que salta las filas que ya tienen `reversion`. El plazo de 12 horas no aplica para reanudar una reversión ya iniciada.
+
+**Qué se hace por fila**
+
+| Módulo y estado de la fila | Acción | No se revierte (`no_revertido`) si… |
+|---|---|---|
+| Productos — `insertado` | Borrar el documento. | Algún crédito o reserva lo referencia por `productoId` (ID de documento o SKU), en el nivel principal o en `items[]`; o el documento ya no tiene `importacionId` de esta importación o su `tipoModificacion` ya no es `"Importación Excel"` (alguien lo editó después). Si ya no existe, se considera revertido. |
+| Empleados — `insertado` | Borrar el documento. | Algún crédito o reserva lo referencia por `empleadoId`; tiene usuario vinculado (`uid`/`usuarioId`); o fue editado después de la importación (misma regla que Productos). |
+| Productos o Empleados — `actualizado` | Por cada campo de `cambios`: si el valor actual es igual a `nuevo`, se restaura `anterior`. Si se restaura `precioContado`, se recalcula `precioCredito` con el `porcentajeInteres` vigente. Se escriben los campos de auditoría con `tipoModificacion: "Reversión de importación"`. | Ningún campo conserva el valor importado. Si solo algunos lo conservan, la fila queda `revertido_parcial` con `camposNoRevertidos`. Si el documento ya no existe, `no_revertido`. |
+| Usuarios — `insertado` | `estado: "Deshabilitado"` en `usuarios/{uid}` más auditoría; si el empleado vinculado tiene ese `uid`/`usuarioId`, se quitan esos campos para que se le pueda asignar otro usuario. **La cuenta de Auth no se borra**: el sistema ya cierra la sesión de los usuarios no activos. | El documento ya no existe. Si ya estaba deshabilitado, se considera revertido. |
+
+Las filas con otro estado (`rechazado`, `omitido`, `sin_cambios`, `no_procesado`) no se tocan.
+
+**Interfaz**
+- En el historial y en el detalle del folio: botón **"Deshacer"** con el tiempo restante ("Disponible por 7 h 20 min") solo cuando `puedeDeshacer` es verdadero. Si no, no se muestra, o se muestra deshabilitado con el motivo (plazo vencido, ya revertida, sin permiso).
+- `ModalDeshacer` muestra antes de confirmar cuántos registros se van a borrar, restaurar o deshabilitar, y avisa que la acción no se puede repetir. Al terminar, lista las filas no revertidas con su motivo para corregirlas a mano.
+- En la pantalla de resultado (paso 4) se muestra "Podés deshacer esta importación durante las próximas 12 horas desde el historial".
+
 ## 7. Historial
 
 - **Tabla:** folio, archivo, módulo, fecha, recibidos, insertados, actualizados, omitidos, rechazados, responsable y estado mostrado. Orden por `fechaInicio` descendente, paginada de 25 en 25 con `limit`/`startAfter`.
@@ -274,6 +323,7 @@ Errores de Auth:
 - `leerExcel.test.js`: libros generados en la prueba con SheetJS (`.xlsx` y `.xls`); hoja vacía, columnas faltantes, tope de filas, filas vacías intermedias.
 - `validar.test.js`, por cada esquema: los casos del mockup (precio negativo, nombre vacío, stock negativo, estado no reconocido, departamento vacío, fecha `2026-05-40`, correo sin `@`), duplicado en el archivo, duplicado contra la base en ambos modos, `sin_cambios`, DNI de otro empleado, categoría o departamento inexistente, rol inexistente, inactivo o SUPER ADMIN, empleado ya vinculado.
 - `ejecutar.test.js`: tramos de 200 filas con su bloque de detalle, reintento exitoso, interrupción tras 3 fallos con `no_procesado`, candado ocupado, revalidación con cambios, reserva de códigos `EMP-NNNN`; Usuarios con borrado de la cuenta si falla `setDoc`, `email-already-in-use`, `too-many-requests` a mitad de archivo y correo de restablecimiento fallido.
+- `deshacer.test.js`: `puedeDeshacer` en el límite de las 12 horas (11:59 sí, 12:01 no), con `fechaFin` nulo, por estado (ya revertida, en proceso) y por permiso (responsable con y sin `IMPORT`, otro usuario con y sin `IMPORTACIONES: EDIT`); borrado de insertados; bloqueo por crédito que referencia por ID, por SKU y dentro de `items[]`; empleado con usuario vinculado; registro editado después de la importación; restauración parcial campo por campo con recálculo de `precioCredito`; usuario deshabilitado y desvinculado del empleado; reanudación de una reversión interrumpida que salta las filas ya revertidas.
 - `roles.test.js`: `IMPORT` no se concede con `"*"`, con acceso total ni con formato de lista; sí se concede cuando está explícita.
 
 ### 9.2 En el sistema — datos reales sobre la base real
@@ -285,7 +335,8 @@ Se usan archivos Excel reales con datos que el negocio necesita. Lo importado qu
 3. Orden: Productos → Empleados → Usuarios.
 4. Usuarios al final, con 2 o 3 cuentas reales, porque crea accesos y envía correos.
 5. Tras cada importación se revisa el folio en el historial y los registros en la pantalla del módulo antes de continuar.
-6. Lista de verificación por rol: SUPER ADMIN (importa los tres módulos desde el historial), un rol con `IMPORT` en un solo módulo (ve solo su botón y su historial), un rol sin `IMPORT` (no ve botones y recibe 403 en `/importar/*`).
+6. **Deshacer** se prueba con una importación pequeña hecha para eso (por ejemplo, 3 productos reales que después se vuelven a importar), también con confirmación previa, porque borra o restaura datos reales.
+7. Lista de verificación por rol: SUPER ADMIN (importa los tres módulos desde el historial), un rol con `IMPORT` en un solo módulo (ve solo su botón y su historial), un rol sin `IMPORT` (no ve botones y recibe 403 en `/importar/*`).
 
 ## 10. Fallas del sistema encontradas — pendientes de decisión
 
