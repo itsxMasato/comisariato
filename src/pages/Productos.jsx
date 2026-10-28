@@ -10,6 +10,8 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
+import { sileo } from "sileo";
+import { skuDuplicado } from "../utils/validaciones";
 
 // ── Componente de Celda de Stock ─────────────────────────────
 function StockCell({ product }) {
@@ -263,12 +265,35 @@ export default function Productos() {
   const handleSave = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const stockVal = parseInt(formData.get("stock"));
-    const priceVal = parseFloat(formData.get("price"));
+    const stockVal = Number(formData.get("stock"));
+    const priceVal = Number(formData.get("price"));
+    const skuVal = String(formData.get("sku") || "").trim();
+
+    // Validaciones antes de escribir: código único, precio y stock válidos
+    if (!skuVal) {
+      sileo.error({ title: "Código requerido", description: "Ingresá el código (SKU) del producto." });
+      return;
+    }
+    const duplicado = skuDuplicado(productsData, skuVal, selectedProduct?.id ?? null);
+    if (duplicado) {
+      sileo.error({
+        title: "Código duplicado",
+        description: `Ya existe el producto «${duplicado.nombre}» con el código ${skuVal}.`,
+      });
+      return;
+    }
+    if (!Number.isFinite(priceVal) || priceVal <= 0) {
+      sileo.error({ title: "Precio inválido", description: "El precio de contado debe ser un número mayor a 0." });
+      return;
+    }
+    if (!Number.isInteger(stockVal) || stockVal < 0) {
+      sileo.error({ title: "Stock inválido", description: "El stock debe ser un número entero mayor o igual a 0." });
+      return;
+    }
 
     const productData = {
       nombre: formData.get("name"),
-      productoId: formData.get("sku"),
+      productoId: skuVal,
       categoria: formData.get("category"),
       precioContado: priceVal,
       precioCredito: priceVal * (1 + (parametros.porcentajeInteres || 0) / 100),
