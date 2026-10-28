@@ -14,7 +14,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, secondaryAuth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 import emailjs from "@emailjs/browser";
-import { ACCIONES_BASE, ACTIONS, MODULES, MODULOS_IMPORTABLES } from "../utils/roles";
+import { ACCIONES_BASE, ACTIONS, MODULES, MODULOS_IMPORTABLES, hasPermission } from "../utils/roles";
 
 function AvatarWithFallback({ name, img, size = "md" }) {
   const sizes = {
@@ -217,6 +217,7 @@ function Toast({ message, show }) {
 export default function Usuarios() {
   const { userName, role: authRole, photoURL } = useAuth();
   const navigate = useNavigate();
+  const canImport = hasPermission(authRole, MODULES.USUARIOS, ACTIONS.IMPORT);
   const [activeTab, setActiveTab] = useState("usuarios");
 
   const [usersData, setUsersData] = useState([]);
@@ -898,6 +899,15 @@ export default function Usuarios() {
                     ))}
                   </div>
                 </div>
+                {canImport && (
+                  <button
+                    onClick={() => navigate("/importar/usuarios")}
+                    className="w-full sm:w-auto bg-white hover:bg-green-50 text-green-800 border border-green-300 px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 whitespace-nowrap rounded-xl"
+                    title="Importar desde Excel"
+                  >
+                    <span className="material-symbols-outlined">upload_file</span> Importar Excel
+                  </button>
+                )}
               </div>
             </div>
 

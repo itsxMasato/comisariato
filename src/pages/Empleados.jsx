@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db, auth, secondaryAuth } from "../firebase/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { hasPermission, MODULES, ACTIONS } from "../utils/roles";
 import emailjs from "@emailjs/browser";
@@ -23,6 +24,8 @@ export default function Empleados() {
     const canCreate = hasPermission(role, MODULES.EMPLEADOS, ACTIONS.CREATE);
     const canEdit = hasPermission(role, MODULES.EMPLEADOS, ACTIONS.EDIT);
     const canDelete = hasPermission(role, MODULES.EMPLEADOS, ACTIONS.DELETE);
+    const canImport = hasPermission(role, MODULES.EMPLEADOS, ACTIONS.IMPORT);
+    const navigate = useNavigate();
 
     const [employeesData, setEmployeesData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -601,6 +604,15 @@ export default function Empleados() {
                                 ))}
                             </div>
                         </div>
+                        {canImport && (
+                          <button
+                            onClick={() => navigate("/importar/empleados")}
+                            className="w-full sm:w-auto bg-white hover:bg-green-50 text-green-800 border border-green-300 px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 whitespace-nowrap"
+                            title="Importar desde Excel"
+                          >
+                            <span className="material-symbols-outlined">upload_file</span> Importar Excel
+                          </button>
+                        )}
                         {canCreate && (
                             <button
                                 onClick={() => handleOpenModal()}

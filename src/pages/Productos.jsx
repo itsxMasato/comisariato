@@ -9,7 +9,9 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db, auth } from "../firebase/firebase";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { ACTIONS, MODULES, hasPermission } from "../utils/roles";
 import { sileo } from "sileo";
 import { skuDuplicado } from "../utils/validaciones";
 
@@ -47,6 +49,8 @@ function StockCell({ product }) {
 
 export default function Productos() {
   const { userName, role: authRole } = useAuth();
+  const canImport = hasPermission(authRole, MODULES.PRODUCTOS, ACTIONS.IMPORT);
+  const navigate = useNavigate();
   const [productsData, setProductsData] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState(
@@ -389,6 +393,15 @@ export default function Productos() {
             </div>
           </div>
 
+          {canImport && (
+            <button
+              onClick={() => navigate("/importar/productos")}
+              className="w-full sm:w-auto bg-white hover:bg-green-50 text-green-800 border border-green-300 px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 whitespace-nowrap"
+              title="Importar desde Excel"
+            >
+              <span className="material-symbols-outlined">upload_file</span> Importar Excel
+            </button>
+          )}
           <button
             onClick={() => {
               setSelectedProduct(null);
