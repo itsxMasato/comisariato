@@ -14,6 +14,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { db, auth, secondaryAuth } from "../firebase/firebase";
 import { useAuth } from "../auth/AuthProvider";
 import emailjs from "@emailjs/browser";
+import { ACCIONES_BASE, ACTIONS, MODULES, MODULOS_IMPORTABLES, hasPermission } from "../utils/roles";
 
 function AvatarWithFallback({ name, img, size = "md" }) {
   const sizes = {
@@ -57,19 +58,14 @@ function AvatarWithFallback({ name, img, size = "md" }) {
 }
 
 // --- DATA ---
-const ALL_PERMISSIONS = [
-  "DASHBOARD",
-  "PRODUCTOS",
-  "EMPLEADOS",
-  "CREDITOS",
-  "CUOTAS",
-  "RESERVAS",
-  "USUARIOS",
-  "BITACORA",
-  "PARAMETROS",
-];
+// Módulos y acciones salen de roles.js para que no se desincronicen
+const ALL_PERMISSIONS = Object.values(MODULES);
 
-const ALL_ACTIONS = ["VIEW", "CREATE", "EDIT", "DELETE", "EXPORT"];
+const ALL_ACTIONS = ACCIONES_BASE;
+
+// Acciones que se pueden marcar en un módulo (Importar solo en los importables)
+const accionesDelModulo = (mod) =>
+  MODULOS_IMPORTABLES.includes(mod) ? [...ALL_ACTIONS, ACTIONS.IMPORT] : ALL_ACTIONS;
 
 const normalizePermissions = (perms) => {
   if (typeof perms === "object" && perms !== null && !Array.isArray(perms)) {
@@ -221,6 +217,7 @@ function Toast({ message, show }) {
 export default function Usuarios() {
   const { userName, role: authRole, photoURL } = useAuth();
   const navigate = useNavigate();
+  const canImport = hasPermission(authRole, MODULES.USUARIOS, ACTIONS.IMPORT);
   const [activeTab, setActiveTab] = useState("usuarios");
 
   const [usersData, setUsersData] = useState([]);
@@ -712,7 +709,9 @@ export default function Usuarios() {
     "RESERVAS": "Reservas de Productos",
     "USUARIOS": "Seguridad y Usuarios",
     "BITACORA": "Registro de Actividad",
-    "PARAMETROS": "Ajustes del Sistema"
+    "PARAMETROS": "Ajustes del Sistema",
+    "APP_MOVIL": "App Móvil",
+    "IMPORTACIONES": "Historial de Importaciones"
   };
 
   const ACTION_LABELS = {
@@ -720,14 +719,16 @@ export default function Usuarios() {
     "CREATE": { label: "Añadir Nuevo", icon: "add_circle" },
     "EDIT": { label: "Modificar", icon: "edit_document" },
     "DELETE": { label: "Eliminar", icon: "delete" },
-    "EXPORT": { label: "Exportar PDF", icon: "picture_as_pdf" }
+    "EXPORT": { label: "Exportar PDF", icon: "picture_as_pdf" },
+    "IMPORT": { label: "Importar Excel", icon: "upload_file" }
   };
 
   const renderGranularPermissions = (roleState, setRoleState) => (
     <div className="space-y-4">
       {ALL_PERMISSIONS.map((mod) => {
         const activeActions = roleState.permissions[mod] || [];
-        const isAllActive = activeActions.length === ALL_ACTIONS.length;
+        const accionesMod = accionesDelModulo(mod);
+        const isAllActive = accionesMod.every((a) => activeActions.includes(a));
 
         return (
           <div
@@ -779,7 +780,7 @@ export default function Usuarios() {
                   className="overflow-hidden bg-slate-50 border-t border-green-800/10"
                 >
                   <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {ALL_ACTIONS.map((action) => {
+                    {accionesMod.map((action) => {
                       const isActive = activeActions.includes(action);
                       const tInfo = ACTION_LABELS[action] || { label: action, icon: "rule" };
 
@@ -898,6 +899,15 @@ export default function Usuarios() {
                     ))}
                   </div>
                 </div>
+                {canImport && (
+                  <button
+                    onClick={() => navigate("/importar/usuarios")}
+                    className="w-full sm:w-auto bg-white hover:bg-green-50 text-green-800 border border-green-300 px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2 whitespace-nowrap rounded-xl"
+                    title="Importar desde Excel"
+                  >
+                    <span className="material-symbols-outlined">upload_file</span> Importar Excel
+                  </button>
+                )}
               </div>
             </div>
 

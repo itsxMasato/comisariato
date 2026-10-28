@@ -1,7 +1,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
-import { hasPermission, MODULES } from "../utils/roles";
+import { hasPermission, MODULES, puedeVerImportaciones } from "../utils/roles";
 
 export default function SideBar({ isOpen, setIsOpen }) {
   const { logout, role, user, photoURL } = useAuth();
@@ -137,6 +137,18 @@ export default function SideBar({ isOpen, setIsOpen }) {
                 style={{ fontFamily: "Manrope, sans-serif" }}
               >
                 Reservas
+              </span>
+            </NavLink>
+          )}
+
+          {puedeVerImportaciones(role) && (
+            <NavLink to="/importaciones" className={linkClass}>
+              <span className="material-symbols-outlined">upload_file</span>
+              <span
+                className="text-sm font-medium"
+                style={{ fontFamily: "Manrope, sans-serif" }}
+              >
+                Importaciones
               </span>
             </NavLink>
           )}

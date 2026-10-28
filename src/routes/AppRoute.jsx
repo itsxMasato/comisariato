@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "../auth/ProtectedRoute";
 import AdminLayout from "../layouts/AdminLayout";
 import { RoleRoute } from "../auth/AdminRoute";
+import { ImportRoute } from "../auth/ImportRoute";
 import { MODULES } from "../utils/roles";
 
 import Login from "../pages/Login";
@@ -50,6 +51,18 @@ import Bitacora from "../pages/Bitacora";
 
 // Datos Variables (solo admin)
 import DatosVariables from "../pages/DatosVariables";
+
+// Importación desde Excel
+import ImportacionWizard from "../pages/importacion/ImportacionWizard";
+import HistorialImportaciones from "../pages/importacion/HistorialImportaciones";
+import { puedeVerImportaciones } from "../utils/roles";
+
+// El historial lo ve quien tiene IMPORTACIONES o IMPORT en algún módulo
+const ImportacionesRoute = ({ children }) => {
+  const { role, loading } = useAuth();
+  if (loading) return <p>Cargando...</p>;
+  return puedeVerImportaciones(role) ? children : <Error403 />;
+};
 
 export default function AppRouter() {
   return (
@@ -148,6 +161,25 @@ export default function AppRouter() {
               <RoleRoute moduleName={MODULES.PARAMETROS}>
                 <DatosVariables />
               </RoleRoute>
+            }
+          />
+
+          {/* Importación desde Excel (permiso IMPORT del módulo) */}
+          <Route
+            path="/importar/:modulo"
+            element={
+              <ImportRoute>
+                <ImportacionWizard />
+              </ImportRoute>
+            }
+          />
+
+          <Route
+            path="/importaciones"
+            element={
+              <ImportacionesRoute>
+                <HistorialImportaciones />
+              </ImportacionesRoute>
             }
           />
 
