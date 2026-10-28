@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase/firebase";
+import { useAuth } from "../../auth/AuthProvider";
+import { hasPermission, MODULES, ACTIONS } from "../../utils/roles";
 import {
+  isActivo,
   toDate,
   todayISO,
   parseISODate,
@@ -26,6 +29,31 @@ import {
 } from "./charts";
 
 const MESES_TENDENCIA = 6;
+
+// Determina qué secciones del dashboard puede ver el rol. Cada tarjeta y panel
+// exige permiso de lectura sobre el módulo del que salen sus datos. Un rol que
+// solo tiene acceso al dashboard (p. ej. CEO) es de consulta gerencial y ve todo.
+const getVisibilidad = (role) => {
+  const puede = (modulo) => hasPermission(role, modulo, ACTIONS.VIEW);
+  const ver = {
+    creditos: puede(MODULES.CREDITOS),
+    cuotas: puede(MODULES.CUOTAS),
+    productos: puede(MODULES.PRODUCTOS),
+    empleados: puede(MODULES.EMPLEADOS),
+  };
+  const soloConsulta = !Object.values(ver).some(Boolean);
+  return soloConsulta ? { creditos: true, cuotas: true, productos: true, empleados: true } : ver;
+};
+
+// Columnas del grid de KPIs según cuántas tarjetas ve el rol
+const kpiGridClass = (n) =>
+  n >= 5
+    ? "md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+    : n === 3
+      ? "md:grid-cols-3"
+      : n === 2
+        ? "md:grid-cols-2"
+        : "md:grid-cols-2 lg:grid-cols-4";
 
 // Umbral por defecto cuando el producto no define stockMinimo (igual que Productos.jsx)
 const STOCK_MINIMO_DEFAULT = 20;
@@ -100,6 +128,7 @@ const ACCENTS = {
   red: { border: "border-red-600", iconBg: "bg-red-50", text: "text-red-600", iconHover: "group-hover:bg-red-100" },
   green: { border: "border-green-800", iconBg: "bg-green-50", text: "text-green-800", iconHover: "group-hover:bg-green-100" },
   emerald: { border: "border-emerald-700", iconBg: "bg-emerald-50", text: "text-emerald-700", iconHover: "group-hover:bg-emerald-100" },
+  blue: { border: "border-blue-600", iconBg: "bg-blue-50", text: "text-blue-600", iconHover: "group-hover:bg-blue-100" },
 };
 
 const Pill = ({ className, children }) => (
@@ -110,6 +139,8 @@ const Pill = ({ className, children }) => (
 // usuarios, créditos, cuotas y productos. Actualiza los estados del componente
 // cuando Firestore notifica cambios y cancela las suscripciones al desmontarlo.
 export default function DashboardGerencial() {
+  const { role } = useAuth();
+  const ver = useMemo(() => getVisibilidad(role), [role]);
   const [modalKey, setModalKey] = useState(null);
   const [fechaFiltro, setFechaFiltro] = useState(() => todayISO());
   const [empleados, setEmpleados] = useState([]);
@@ -118,18 +149,21 @@ export default function DashboardGerencial() {
   const [cuotasRaw, setCuotasRaw] = useState([]);
   const [productos, setProductos] = useState([]);
 
+  // Solo se suscribe a las colecciones que alimentan las secciones visibles
+  // para el rol. Los pagos necesitan los créditos para mostrar código y empleado.
+  const verFinanzas = ver.creditos || ver.cuotas;
   useEffect(() => {
     const listen = (name, setter) =>
       onSnapshot(collection(db, name), (s) => setter(s.docs.map((d) => ({ id: d.id, ...d.data() }))));
     const unsubs = [
-      listen("empleados", setEmpleados),
-      listen("usuarios", setUsuarios),
-      listen("creditos", setCreditosRaw),
-      listen("cuotas", setCuotasRaw),
-      listen("productos", setProductos),
-    ];
+      (verFinanzas || ver.empleados) && listen("empleados", setEmpleados),
+      verFinanzas && listen("usuarios", setUsuarios),
+      verFinanzas && listen("creditos", setCreditosRaw),
+      verFinanzas && listen("cuotas", setCuotasRaw),
+      ver.productos && listen("productos", setProductos),
+    ].filter(Boolean);
     return () => unsubs.forEach((u) => u());
-  }, []);
+  }, [verFinanzas, ver.empleados, ver.productos]);
 
   useEffect(() => {
     if (!modalKey) return;
@@ -336,6 +370,46 @@ export default function DashboardGerencial() {
       .sort((a, b) => b.productos - a.productos);
   }, [productos]);
 
+  // KPI 5: Personal
+  // Clasifica a los empleados como activos o inactivos (sin estado cuenta como
+  // activo, igual que Empleados.jsx) y agrupa a los activos por departamento.
+  const personal = useMemo(() => {
+    const rows = empleados
+      .map((e) => ({
+        id: e.id,
+        codigo: e.codigoEmpleado || String(e.id).substring(0, 8).toUpperCase(),
+        nombre: fullName(e) || "Sin nombre",
+        departamento: e.departamento || "Sin departamento",
+        limiteCredito: Number(e.limiteCredito) || 0,
+        estado: isActivo(e.estado || "activo") ? "Activo" : "Inactivo",
+      }))
+      .sort((a, b) => (a.estado === b.estado ? a.nombre.localeCompare(b.nombre) : a.estado === "Activo" ? -1 : 1));
+    const activos = rows.filter((e) => e.estado === "Activo");
+    const grupos = {};
+    activos.forEach((e) => {
+      grupos[e.departamento] = (grupos[e.departamento] || 0) + 1;
+    });
+    const departamentos = Object.entries(grupos)
+      .map(([departamento, total]) => ({ departamento, total }))
+      .sort((a, b) => b.total - a.total);
+    return { rows, activos: activos.length, inactivos: rows.length - activos.length, departamentos };
+  }, [empleados]);
+
+  const carteraTop = useMemo(() => cartera.rows.filter((c) => c.status === "Activo").slice(0, 5), [cartera]);
+
+  const numKpis = [ver.creditos, ver.cuotas, ver.creditos, ver.productos, ver.empleados].filter(Boolean).length;
+
+  const areasVisibles = [
+    ver.creditos && "solicitudes y cartera",
+    ver.cuotas && "cobros",
+    ver.productos && "inventario",
+    ver.empleados && "personal",
+  ].filter(Boolean);
+  const subtituloAreas =
+    areasVisibles.length > 1
+      ? `${areasVisibles.slice(0, -1).join(", ")} y ${areasVisibles[areasVisibles.length - 1]}`
+      : areasVisibles[0];
+
   // ──────────────────────────────────────────────────────────
   // CONFIGURACIÓN DE MODALES DINÁMICOS POR KPI
   // ──────────────────────────────────────────────────────────
@@ -364,6 +438,12 @@ export default function DashboardGerencial() {
       datos: inventarioBajo,
       columns: ["Código", "Producto", "Categoría", "Stock Actual", "Stock Mínimo", "Nivel Alerta"],
     },
+    personal: {
+      titulo: "Plantilla de Empleados",
+      subtitulo: `${personal.activos} activos y ${personal.inactivos} inactivos, distribuidos en ${personal.departamentos.length} departamentos`,
+      datos: personal.rows,
+      columns: ["Código", "Empleado", "Departamento", "Límite de Crédito", "Estado"],
+    },
   };
 
   const modalData = modalKey ? kpiConfigs[modalKey] : null;
@@ -389,10 +469,11 @@ export default function DashboardGerencial() {
               Dashboard Gerencial
             </h1>
             <p className="text-slate-500 font-medium text-xs mt-0.5">
-              Seguimiento de solicitudes, cobros y estado del inventario de Comisariato Pro.
+              Seguimiento de {subtituloAreas} de Comisariato Pro.
             </p>
           </div>
 
+          {verFinanzas && (
           <div className="flex items-center gap-2 shrink-0">
             <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-sm">
               <span className="material-symbols-outlined text-slate-500 text-base">calendar_today</span>
@@ -407,10 +488,12 @@ export default function DashboardGerencial() {
               {periodoLabel}
             </span>
           </div>
+          )}
         </section>
 
-        {/* 2. FILA DE 4 TARJETAS KPI */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 2. TARJETAS KPI (según los módulos que puede ver el rol) */}
+        <section className={`grid grid-cols-1 ${kpiGridClass(numKpis)} gap-4`}>
+          {ver.creditos && (
           <KpiCard
             onClick={() => setModalKey("solicitudes")}
             accent={ACCENTS.red}
@@ -441,6 +524,8 @@ export default function DashboardGerencial() {
             }
             footer={`${solicitudes.pctAprobadas}% aprobadas`}
           />
+          )}
+          {ver.cuotas && (
           <KpiCard
             onClick={() => setModalKey("pagos")}
             accent={ACCENTS.green}
@@ -462,6 +547,8 @@ export default function DashboardGerencial() {
             }
             footer={`${MESES_TENDENCIA} meses de cobro`}
           />
+          )}
+          {ver.creditos && (
           <KpiCard
             onClick={() => setModalKey("cartera")}
             accent={ACCENTS.emerald}
@@ -490,6 +577,8 @@ export default function DashboardGerencial() {
             }
             footer={`${cartera.activos} activos · ${cartera.pendientes} pend.`}
           />
+          )}
+          {ver.productos && (
           <KpiCard
             onClick={() => setModalKey("inventario")}
             accent={ACCENTS.red}
@@ -520,11 +609,132 @@ export default function DashboardGerencial() {
             }
             footer="Por reponer"
           />
+          )}
+          {ver.empleados && (
+          <KpiCard
+            onClick={() => setModalKey("personal")}
+            accent={ACCENTS.blue}
+            icon="badge"
+            badge={`${personal.inactivos} inactivos`}
+            badgeClass="bg-blue-100 text-blue-700"
+            label="Empleados Activos"
+            value={personal.activos}
+            valueSuffix={`de ${personal.rows.length} registrados`}
+            chart={
+              <>
+                <StackedBar
+                  emptyLabel="Sin empleados registrados"
+                  segments={[
+                    { label: "activos", value: personal.activos, color: CHART_COLORS.blue },
+                    { label: "inactivos", value: personal.inactivos, color: CHART_COLORS.neutral },
+                  ]}
+                />
+                <Legend
+                  items={[
+                    { label: "activos", value: personal.activos, color: CHART_COLORS.blue },
+                    { label: "inactivos", value: personal.inactivos, color: CHART_COLORS.neutral },
+                  ]}
+                />
+              </>
+            }
+            footer={`${personal.departamentos.length} departamentos`}
+          />
+          )}
         </section>
 
-        {/* 3. SECCIÓN DE 2 TABLAS RESUMEN */}
+        {/* 3. PANELES RESUMEN (según los módulos que puede ver el rol) */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Panel: Créditos activos con mayor riesgo */}
+          {ver.creditos && (
+          <article className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+            <div className="flex items-start justify-between gap-3 mb-2.5 pb-2 border-b border-slate-100">
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-gray-900" style={{ fontFamily: "Manrope, sans-serif" }}>
+                  Créditos Activos con Mayor Riesgo
+                </h4>
+                <p className="text-[10px] text-slate-400 font-medium">Primero los créditos en mora, luego los de mayor saldo</p>
+              </div>
+              <button
+                onClick={() => setModalKey("cartera")}
+                className="shrink-0 whitespace-nowrap text-[11px] font-bold text-emerald-700 hover:underline cursor-pointer"
+              >
+                Ver cartera ({cartera.rows.length}) →
+              </button>
+            </div>
+
+            <ul className="divide-y divide-slate-100">
+              {carteraTop.map((cred) => {
+                const tone = cred.estadoCartera === "En Mora" ? STATUS_TONES.critical : STATUS_TONES.good;
+                return (
+                  <li key={cred.id} className="py-2.5 first:pt-1">
+                    <div className="mb-1.5 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[11px] font-bold text-gray-900" title={cred.empleado}>
+                          {cred.empleado}
+                        </p>
+                        <p className="truncate font-mono text-[10px] font-medium text-slate-400">{cred.code}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="whitespace-nowrap text-[11px] tabular-nums">
+                          <strong className="font-black text-slate-900">{formatLempiras(cred.saldo, 0)}</strong>
+                          <span className="font-medium text-slate-400"> / {formatLempiras(cred.monto, 0)}</span>
+                        </p>
+                        <p className={`inline-flex items-center gap-0.5 text-[10px] font-bold ${tone.text}`}>
+                          <span className="material-symbols-outlined text-[12px]">{tone.icon}</span>
+                          {cred.cuotasVencidas > 0 ? `${cred.cuotasVencidas} cuotas vencidas` : "Al día"}
+                        </p>
+                      </div>
+                    </div>
+                    <Meter
+                      value={cred.monto - cred.saldo}
+                      max={cred.monto}
+                      tone={tone}
+                      label={`${cred.empleado}: ${formatLempiras(cred.monto - cred.saldo, 0)} pagados de ${formatLempiras(cred.monto, 0)}`}
+                    />
+                  </li>
+                );
+              })}
+              {carteraTop.length === 0 && (
+                <li className="py-6 text-center text-[11px] font-medium text-slate-400">No hay créditos activos.</li>
+              )}
+            </ul>
+          </article>
+          )}
+
+          {/* Panel: Empleados activos por departamento */}
+          {ver.empleados && (
+          <article className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+            <div className="flex items-start justify-between gap-3 mb-2.5 pb-2 border-b border-slate-100">
+              <div className="min-w-0">
+                <h4 className="text-sm font-bold text-gray-900" style={{ fontFamily: "Manrope, sans-serif" }}>
+                  Empleados Activos por Departamento
+                </h4>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  Distribución de los {personal.activos} empleados activos
+                </p>
+              </div>
+              <span className="shrink-0 whitespace-nowrap text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                {personal.departamentos.length} Departamentos
+              </span>
+            </div>
+
+            <BarList
+              color={CHART_COLORS.blue}
+              emptyLabel="No hay empleados activos."
+              items={personal.departamentos.slice(0, 7).map((d) => ({
+                key: d.departamento,
+                label: d.departamento,
+                value: d.total,
+                valueLabel: `${Math.round((d.total / (personal.activos || 1)) * 100)}%`,
+                secondary: `${d.total} emp.`,
+                tip: <TipContent value={`${d.total} ${d.total === 1 ? "empleado" : "empleados"}`} label={d.departamento} />,
+              }))}
+            />
+          </article>
+          )}
+
           {/* Tabla A: Últimos productos con inventario bajo */}
+          {ver.productos && (
           <article className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
             <div className="flex items-start justify-between gap-3 mb-2.5 pb-2 border-b border-slate-100">
               <div className="min-w-0">
@@ -580,8 +790,10 @@ export default function DashboardGerencial() {
               )}
             </ul>
           </article>
+          )}
 
           {/* Tabla B: Distribución de productos por categoría */}
+          {ver.productos && (
           <article className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
             <div className="flex items-start justify-between gap-3 mb-2.5 pb-2 border-b border-slate-100">
               <div className="min-w-0">
@@ -614,6 +826,7 @@ export default function DashboardGerencial() {
               }))}
             />
           </article>
+          )}
         </section>
       </motion.div>
 
@@ -727,6 +940,21 @@ export default function DashboardGerencial() {
                           <td className="px-3 py-2 text-slate-600 font-semibold">{item.stockMinimo} unid.</td>
                           <td className="px-3 py-2">
                             <Pill className={alertaPillClass(item.estado)}>{item.estado}</Pill>
+                          </td>
+                        </tr>
+                      ))}
+
+                    {modalKey === "personal" &&
+                      modalData.datos.map((item) => (
+                        <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-3 py-2 font-mono text-[11px] font-bold text-slate-700">{item.codigo}</td>
+                          <td className="px-3 py-2 font-bold text-gray-900">{item.nombre}</td>
+                          <td className="px-3 py-2 text-slate-600">{item.departamento}</td>
+                          <td className="px-3 py-2 font-black text-green-800">{formatLempiras(item.limiteCredito)}</td>
+                          <td className="px-3 py-2">
+                            <Pill className={item.estado === "Activo" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}>
+                              {item.estado}
+                            </Pill>
                           </td>
                         </tr>
                       ))}
