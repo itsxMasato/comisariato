@@ -64,7 +64,10 @@ export default function ImportacionWizard() {
     return () => window.removeEventListener("beforeunload", avisar);
   }, [ejecutando]);
 
-  const mapa = useMemo(() => (lectura ? validarEncabezados(esquema, lectura.encabezados).mapa : {}), [esquema, lectura]);
+  const { mapa, ignorados } = useMemo(
+    () => (lectura ? validarEncabezados(esquema, lectura.encabezados) : { mapa: {}, ignorados: [] }),
+    [esquema, lectura],
+  );
   const puedeVerModulo = hasPermission(role, esquema.moduloPermiso, ACTIONS.VIEW);
   const origen = puedeVerModulo ? esquema.nombre : "Importaciones";
   const volverAlOrigen = () => navigate(puedeVerModulo ? RUTA_MODULO[esquema.id] : "/importaciones");
@@ -189,6 +192,7 @@ export default function ImportacionWizard() {
           onCambiarModo={setModo}
           archivo={archivo}
           lectura={lectura}
+          columnasIgnoradas={ignorados}
           cargando={cargando}
           error={error}
           onCerrarError={() => setError(null)}

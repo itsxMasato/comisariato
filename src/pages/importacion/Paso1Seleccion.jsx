@@ -23,6 +23,7 @@ export default function Paso1Seleccion({
   onCambiarModo,
   archivo,
   lectura,
+  columnasIgnoradas = [],
   cargando,
   error,
   onCerrarError,
@@ -144,6 +145,16 @@ export default function Paso1Seleccion({
             if (elegido) onSeleccionarArchivo(elegido);
           }}
         />
+
+        {!cargando && lectura && columnasIgnoradas.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-900">
+            <span className="material-symbols-outlined text-amber-700 text-xl">info</span>
+            <p className="leading-relaxed">
+              Estas columnas no se reconocen y se van a ignorar: <strong>{columnasIgnoradas.join(", ")}</strong>. Si alguna debía importarse,
+              renombrala como en la plantilla.
+            </p>
+          </div>
+        )}
 
         {cargando ? (
           <div className="border-2 border-dashed border-green-300 bg-green-50/40 rounded-3xl p-10 flex flex-col items-center text-center space-y-4">
