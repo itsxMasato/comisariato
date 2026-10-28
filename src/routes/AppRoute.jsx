@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "../auth/ProtectedRoute";
 import AdminLayout from "../layouts/AdminLayout";
 import { RoleRoute } from "../auth/AdminRoute";
+import { ImportRoute } from "../auth/ImportRoute";
 import { MODULES } from "../utils/roles";
 
 import Login from "../pages/Login";
@@ -50,6 +51,9 @@ import Bitacora from "../pages/Bitacora";
 
 // Datos Variables (solo admin)
 import DatosVariables from "../pages/DatosVariables";
+
+// Importación desde Excel
+import ImportacionWizard from "../pages/importacion/ImportacionWizard";
 
 export default function AppRouter() {
   return (
@@ -148,6 +152,16 @@ export default function AppRouter() {
               <RoleRoute moduleName={MODULES.PARAMETROS}>
                 <DatosVariables />
               </RoleRoute>
+            }
+          />
+
+          {/* Importación desde Excel (permiso IMPORT del módulo) */}
+          <Route
+            path="/importar/:modulo"
+            element={
+              <ImportRoute>
+                <ImportacionWizard />
+              </ImportRoute>
             }
           />
 
